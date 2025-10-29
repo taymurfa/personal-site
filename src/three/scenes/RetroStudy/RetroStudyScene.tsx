@@ -1,15 +1,43 @@
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { VintageComputer } from './VintageComputer';
 import { Desk } from './Desk';
-import { Bookshelves } from './Bookshelves';
 import { DeskLamp } from './DeskLamp';
-import { Chair } from './Chair';
+import { ChairModel } from './ChairModel';
 import { Environment } from '@react-three/drei';
+import * as THREE from 'three';
 
 interface RetroStudySceneProps {
 	onEnterTerminal?: () => void;
 }
 
 export function RetroStudyScene({ onEnterTerminal }: RetroStudySceneProps) {
+    const [deskTopY, setDeskTopY] = useState<number | null>(null);
+    const furnitureRef = useRef<THREE.Group>(null);
+    const [furnitureZ, setFurnitureZ] = useState(0);
+    const [furnitureY, setFurnitureY] = useState(0);
+
+    const handleDeskBounds = useCallback((bounds: { topY: number; bottomY: number }) => {
+        const floorY = -1.9;
+        const epsilon = 0.005;
+        const delta = (floorY + epsilon) - bounds.bottomY;
+        setFurnitureY(delta);
+        setDeskTopY(bounds.topY + delta);
+    }, []);
+
+    // Align groups so their back-most edge sits flush with back wall (z = -2.5)
+    useEffect(() => {
+        const wallZ = -2.5;
+        const epsilon = 0.002;
+
+        if (furnitureRef.current) {
+            furnitureRef.current.updateWorldMatrix(true, true);
+            const box = new THREE.Box3().setFromObject(furnitureRef.current);
+            const minZ = box.min.z;
+            const delta = (wallZ + epsilon) - minZ;
+            if (Math.abs(delta) > 1e-4) setFurnitureZ((z) => z + delta);
+        }
+
+    }, []);
 	const handleScreenClick = () => {
 		if (onEnterTerminal) {
 			onEnterTerminal();
@@ -47,20 +75,19 @@ export function RetroStudyScene({ onEnterTerminal }: RetroStudySceneProps) {
 				decay={2}
 			/>
 
-			{/* Desk with computer setup */}
-			<group>
-				<Desk />
-				<group position={[0, 0, 0]}>
-					<VintageComputer onScreenClick={handleScreenClick} />
-				</group>
-				<DeskLamp />
-			</group>
+            {/* Desk with computer setup */}
+            <group ref={furnitureRef} position={[0, furnitureY, furnitureZ]}>
+                <Desk onBounds={handleDeskBounds} />
+                <group position={[0, 0, 0]}>
+                    <VintageComputer onScreenClick={handleScreenClick} deskTopY={deskTopY ?? undefined} />
+                </group>
+                <DeskLamp />
+            </group>
 
-			{/* Chair - positioned behind desk */}
-			<Chair />
+            {/* Chair - replaced with uploaded asset */}
+            <ChairModel />
 
-			{/* Bookshelves in the background */}
-			<Bookshelves />
+            {/* Bookshelves removed */}
 
 			{/* Floor */}
 			<mesh
@@ -138,3 +165,4 @@ export function RetroStudyScene({ onEnterTerminal }: RetroStudySceneProps) {
 		</>
 	);
 }
+

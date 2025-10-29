@@ -27,7 +27,7 @@ function App() {
 			<div className={`scene-container ${fadeOut3D ? 'fade-out' : ''}`}>
 				<Canvas
 					camera={{
-						position: [-0.5, -0.1, 2.6],
+						position: [-0.5, 1.5, 2.2],
 						fov: 50,
 					}}
 					shadows
@@ -42,13 +42,13 @@ function App() {
 					<OrbitControls
 						enableDamping
 						dampingFactor={0.15}
-						enableZoom={true}
+						enableZoom={false}
 						enablePan={false}
 						minPolarAngle={0}
 						maxPolarAngle={Math.PI}
 						minAzimuthAngle={-Math.PI * (2 / 3)}
 						maxAzimuthAngle={Math.PI * (2 / 3)}
-						target={[0, -0.1, 2.5]}
+						target={[0, 1, 0.5]}
 						rotateSpeed = {0.3}
 					/>
 				</Canvas>

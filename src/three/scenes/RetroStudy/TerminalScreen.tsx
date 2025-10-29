@@ -3,10 +3,13 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 
 interface TerminalScreenProps {
-	isHighlighted?: boolean;
+    isHighlighted?: boolean;
+    width?: number;
+    height?: number;
+    offset?: number; // how far in front of the target surface along its normal
 }
 
-export function TerminalScreen({ isHighlighted = false }: TerminalScreenProps) {
+export function TerminalScreen({ isHighlighted = false, width = 0.8, height = 0.6, offset = 0.012 }: TerminalScreenProps) {
 	const materialRef = useRef<THREE.ShaderMaterial>(null);
 
 	// Terminal text content
@@ -133,14 +136,14 @@ export function TerminalScreen({ isHighlighted = false }: TerminalScreenProps) {
 		}
 	});
 
-	return (
-		<mesh position={[0, 0, 0.02]}>
-			<planeGeometry args={[0.8, 0.6]} />
-			<shaderMaterial
-				ref={materialRef}
-				attach="material"
-				{...shaderMaterial}
-			/>
-		</mesh>
-	);
+    return (
+        <mesh position={[0, 0, offset]}>
+            <planeGeometry args={[width, height]} />
+            <shaderMaterial
+                ref={materialRef}
+                attach="material"
+                {...shaderMaterial}
+            />
+        </mesh>
+    );
 }
