@@ -1,9 +1,8 @@
-import { useState } from 'react';
 import { VintageComputer } from './VintageComputer';
 import { Desk } from './Desk';
 import { Bookshelves } from './Bookshelves';
 import { DeskLamp } from './DeskLamp';
-import { CameraController } from './CameraController';
+import { Chair } from './Chair';
 import { Environment } from '@react-three/drei';
 
 interface RetroStudySceneProps {
@@ -11,23 +10,8 @@ interface RetroStudySceneProps {
 }
 
 export function RetroStudyScene({ onEnterTerminal }: RetroStudySceneProps) {
-	const [isZoomedIn, setIsZoomedIn] = useState(false);
-
-	// Camera positions (from seated perspective)
-	const defaultCameraPosition: [number, number, number] = [0, -0.2, 1.2];
-	const zoomedCameraPosition: [number, number, number] = [0, -0.3, 0.5];
-	const defaultLookAt: [number, number, number] = [0, -0.66, 0];
-	const zoomedLookAt: [number, number, number] = [0, -0.66, 0];
-
 	const handleScreenClick = () => {
-		if (!isZoomedIn) {
-			setIsZoomedIn(true);
-		}
-	};
-
-	const handleZoomComplete = () => {
-		if (isZoomedIn && onEnterTerminal) {
-			// Trigger terminal transition after zoom completes
+		if (onEnterTerminal) {
 			onEnterTerminal();
 		}
 	};
@@ -63,21 +47,17 @@ export function RetroStudyScene({ onEnterTerminal }: RetroStudySceneProps) {
 				decay={2}
 			/>
 
-			{/* Camera Controller for zoom animation */}
-			<CameraController
-				targetPosition={isZoomedIn ? zoomedCameraPosition : defaultCameraPosition}
-				targetLookAt={isZoomedIn ? zoomedLookAt : defaultLookAt}
-				onAnimationComplete={handleZoomComplete}
-			/>
-
 			{/* Desk with computer setup */}
 			<group>
 				<Desk />
-				<group position={[0, -0.66, 0]}>
+				<group position={[0, 0, 0]}>
 					<VintageComputer onScreenClick={handleScreenClick} />
 				</group>
 				<DeskLamp />
 			</group>
+
+			{/* Chair - positioned behind desk */}
+			<Chair />
 
 			{/* Bookshelves in the background */}
 			<Bookshelves />

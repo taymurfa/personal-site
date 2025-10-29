@@ -27,8 +27,8 @@ function App() {
 			<div className={`scene-container ${fadeOut3D ? 'fade-out' : ''}`}>
 				<Canvas
 					camera={{
-						position: [0, -0.2, 1.2],
-						fov: 70,
+						position: [-0.5, -0.1, 2.6],
+						fov: 50,
 					}}
 					shadows
 					gl={{
@@ -41,28 +41,19 @@ function App() {
 					</Suspense>
 					<OrbitControls
 						enableDamping
-						dampingFactor={0.05}
-						// Lock camera position - no zooming in/out
-						enableZoom={false}
+						dampingFactor={0.15}
+						enableZoom={true}
 						enablePan={false}
-						// Set distance constraints to lock position
-						minDistance={0}
-						maxDistance={0}
-						// Vertical rotation limits (head tilt)
-						// Looking up: ~45 degrees above horizon
-						minPolarAngle={Math.PI / 2 - Math.PI / 4}
-						// Looking down: ~90 degrees below horizon
-						maxPolarAngle={Math.PI / 2 + Math.PI / 2}
-						// Horizontal rotation limits (head turn)
-						// ~120 degrees left and right = 240 degrees total
+						minPolarAngle={0}
+						maxPolarAngle={Math.PI}
 						minAzimuthAngle={-Math.PI * (2 / 3)}
 						maxAzimuthAngle={Math.PI * (2 / 3)}
-						// Look at the computer screen
-						target={[0, -0.66, 0]}
+						target={[0, -0.1, 2.5]}
+						rotateSpeed = {0.3}
 					/>
 				</Canvas>
 				<div className="hud">
-					<h1>Retro Workstation</h1>
+					<h1>Taymur Faruqui</h1>
 					<p>Use your mouse to look around</p>
 					<p className="hint">Click the screen to boot up</p>
 				</div>
