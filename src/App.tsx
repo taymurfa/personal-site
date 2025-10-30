@@ -58,7 +58,7 @@ function App() {
 			<div className={sceneClassName}>
 				<Canvas
 					camera={{
-						position: [0, 0.7, 0],
+						position: [0.1, 0.6, 0],
 						rotation: [0, 0, 0],
 						fov: 65,
 					}}
@@ -70,7 +70,7 @@ function App() {
 				>
 					<LoadingTracker onProgress={handleLoadingProgress} onComplete={handleAssetsReady} />
 					<Suspense fallback={null}>
-						<RetroStudyScene onEnterTerminal={handleEnterTerminal} assetsReady={assetsReady} />
+						<RetroStudyScene onEnterTerminal={handleEnterTerminal} />
 					</Suspense>
 					<CameraRotationControls
 						minPolarAngle={Math.PI / 6}

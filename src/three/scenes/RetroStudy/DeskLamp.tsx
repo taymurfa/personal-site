@@ -8,20 +8,26 @@ interface DeskLampProps {
 }
 
 // Configuration constants
-const LAMP_POSITION = { x: 1.05, yOffset: 0.5, z: -0.2 };
-const LAMP_ROTATION_Y = -Math.PI * 0.3; // -81 degrees
-const LAMP_SCALE = 0.7;
+const LAMP_POSITION = { x: 1.15, yOffset: 0.12, z: 0.4};
+const LAMP_ROTATION_Y = -Math.PI * 0.45; // -81 degrees
+const LAMP_SCALE = 0.8;
 
 const LIGHT_CONFIG = {
 	position: { x: 0, y: 0.32, z: 0 },
-	rotation: Math.PI / 3, // 60 degrees downward tilt
-	angle: Math.PI / 4, // 45 degree cone
+	rotation: -Math.PI * 0.3, // 60 degrees downward tilt
+	angle: Math.PI / 3,
 	penumbra: 0.5,
 	color: '#ffa850',
 	baseIntensity: 4.0,
 	distance: 3.0,
 	decay: 2.0,
 	shadowMapSize: 1024,
+};
+
+const BULB_GLOW = {
+	intensity: 0.8,
+	distance: 0.35,
+	decay: 2,
 };
 
 const FLICKER_CONFIG = {
@@ -33,16 +39,29 @@ const FLICKER_CONFIG = {
 
 export function DeskLamp({ deskTopY }: DeskLampProps) {
 	const lightRef = useRef<THREE.SpotLight>(null);
+	const bulbGlowRef = useRef<THREE.PointLight>(null);
 	const groupRef = useRef<THREE.Group>(null);
 	const { scene } = useGLTF('/src/assets/models/desk_lamp.glb');
 	const [lampY, setLampY] = useState(0);
 
-	// Enable shadows on all meshes in the lamp model
+	// Enable shadows and make bulb emissive
 	useEffect(() => {
 		scene.traverse((child) => {
 			if ((child as THREE.Mesh).isMesh) {
-				child.castShadow = true;
-				child.receiveShadow = true;
+				const mesh = child as THREE.Mesh;
+				mesh.castShadow = true;
+				mesh.receiveShadow = true;
+
+				// Make the bulb mesh emissive so it appears to glow
+				const nameLower = mesh.name.toLowerCase();
+				if (nameLower.includes('sphere')) {
+					const material = mesh.material as THREE.MeshStandardMaterial;
+					if (material && material.isMeshStandardMaterial) {
+						material.emissive = new THREE.Color(LIGHT_CONFIG.color);
+						material.emissiveIntensity = 30.0;
+						material.needsUpdate = true;
+					}
+				}
 			}
 		});
 	}, [scene]);
@@ -58,9 +77,9 @@ export function DeskLamp({ deskTopY }: DeskLampProps) {
 		setLampY(offset);
 	}, [deskTopY, scene]);
 
-	// Animate light flicker
+	// Animate light flicker for both spotlight and bulb glow
 	useFrame(({ clock }) => {
-		if (!lightRef.current) return;
+		if (!lightRef.current || !bulbGlowRef.current) return;
 
 		const time = clock.getElapsedTime();
 		const { slow, medium, fast, intensityMultiplier } = FLICKER_CONFIG;
@@ -72,6 +91,7 @@ export function DeskLamp({ deskTopY }: DeskLampProps) {
 			Math.sin(time * fast.frequency) * fast.amplitude;
 
 		lightRef.current.intensity = LIGHT_CONFIG.baseIntensity + flicker * intensityMultiplier;
+		bulbGlowRef.current.intensity = BULB_GLOW.intensity + flicker * intensityMultiplier * 0.4;
 	});
 
 	return (
@@ -83,6 +103,16 @@ export function DeskLamp({ deskTopY }: DeskLampProps) {
 				position={[0, 0.12, 0]}
 			>
 				<primitive object={scene} castShadow receiveShadow />
+
+				{/* Small point light at bulb for additional local illumination */}
+				<pointLight
+					ref={bulbGlowRef}
+					position={[LIGHT_CONFIG.position.x, LIGHT_CONFIG.position.y, LIGHT_CONFIG.position.z]}
+					color={LIGHT_CONFIG.color}
+					intensity={BULB_GLOW.intensity}
+					distance={BULB_GLOW.distance}
+					decay={BULB_GLOW.decay}
+				/>
 
 				<spotLight
 					ref={lightRef}

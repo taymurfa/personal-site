@@ -1,6 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react';
 import { useGLTF } from '@react-three/drei';
-import { ThreeEvent } from '@react-three/fiber';
 import * as THREE from 'three';
 import { TerminalScreen } from './TerminalScreen';
 
