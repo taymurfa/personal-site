@@ -1,12 +1,20 @@
-import { Suspense, useState } from 'react';
+import { Suspense, useCallback, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { RetroStudyScene } from './three/scenes/RetroStudy';
 import { TerminalLandingPage } from './components/TerminalLandingPage';
 import { CameraRotationControls } from './three/scenes/RetroStudy/CameraRotationControls';
+import { CLILoadingOverlay } from './components/CLILoadingOverlay';
+import { LoadingTracker } from './three/LoadingTracker';
 
 function App() {
 	const [showLandingPage, setShowLandingPage] = useState(false);
 	const [fadeOut3D, setFadeOut3D] = useState(false);
+	const [assetsReady, setAssetsReady] = useState(false);
+	const [loadingActive, setLoadingActive] = useState(true);
+	const [loadingProgress, setLoadingProgress] = useState(0);
+	const [loadingLoaded, setLoadingLoaded] = useState(0);
+	const [loadingTotal, setLoadingTotal] = useState(0);
+	const [loadingItem, setLoadingItem] = useState('');
 
 	const handleEnterTerminal = () => {
 		// Start fade out animation
@@ -22,12 +30,35 @@ function App() {
 		setFadeOut3D(false);
 	};
 
+	const handleLoadingProgress = useCallback((progress: number, loaded: number, total: number, item: string) => {
+		setLoadingActive(true);
+		setLoadingProgress(progress);
+		setLoadingLoaded(loaded);
+		setLoadingTotal(total);
+		setLoadingItem(item);
+	}, []);
+
+	const handleAssetsReady = useCallback(() => {
+		setLoadingActive(false);
+		setAssetsReady(true);
+	}, []);
+
+	const sceneClassName = `scene-container ${fadeOut3D ? 'fade-out' : ''} ${assetsReady ? 'loaded' : 'is-loading'}`;
+
 	return (
 		<div className="app-root">
-			<div className={`scene-container ${fadeOut3D ? 'fade-out' : ''}`}>
+			<CLILoadingOverlay
+				active={loadingActive}
+				progress={loadingProgress}
+				loaded={loadingLoaded}
+				total={loadingTotal}
+				item={loadingItem}
+				onComplete={handleAssetsReady}
+			/>
+			<div className={sceneClassName}>
 				<Canvas
 					camera={{
-						position: [0, 0.5, 0],
+						position: [0, 0.7, 0],
 						rotation: [0, 0, 0],
 						fov: 65,
 					}}
@@ -37,8 +68,9 @@ function App() {
 						toneMapping: 0, // NoToneMapping for darker atmosphere
 					}}
 				>
+					<LoadingTracker onProgress={handleLoadingProgress} onComplete={handleAssetsReady} />
 					<Suspense fallback={null}>
-						<RetroStudyScene onEnterTerminal={handleEnterTerminal} />
+						<RetroStudyScene onEnterTerminal={handleEnterTerminal} assetsReady={assetsReady} />
 					</Suspense>
 					<CameraRotationControls
 						minPolarAngle={Math.PI / 6}
@@ -49,15 +81,10 @@ function App() {
 						damping={0.7}
 					/>
 				</Canvas>
-				<div className="hud">
-					<h1>Taymur Faruqui</h1>
-					<p>Use your mouse to look around</p>
-					<p className="hint">Click the screen to boot up</p>
 				</div>
+				{showLandingPage && <TerminalLandingPage onBack={handleBackTo3D} />}
 			</div>
-			{showLandingPage && <TerminalLandingPage onBack={handleBackTo3D} />}
-		</div>
-	);
-}
+		);
+	}
 
 export default App;

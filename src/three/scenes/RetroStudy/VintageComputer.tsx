@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react';
 import { useGLTF } from '@react-three/drei';
+import { ThreeEvent } from '@react-three/fiber';
 import * as THREE from 'three';
-import { GLTF } from 'three-stdlib';
 import { TerminalScreen } from './TerminalScreen';
 
 interface VintageComputerProps {
@@ -9,15 +9,6 @@ interface VintageComputerProps {
 	deskTopY?: number; // world-space Y of desk surface
 	debug?: boolean; // show debug helpers for screen alignment
 }
-
-type ComputerTerminalGLTF = GLTF & {
-	nodes: {
-		'Comp_Screen.000_TerminalMaterial_0': THREE.Mesh;
-		'Comp_Screen.002_TerminalMaterial_0': THREE.Mesh;
-	};
-	materials: Record<string, THREE.Material | THREE.Material[]>;
-};
-
 
 export function VintageComputer({ onScreenClick, deskTopY, debug = false }: VintageComputerProps) {
 	const [isHovered, setIsHovered] = useState(false);
@@ -32,8 +23,26 @@ export function VintageComputer({ onScreenClick, deskTopY, debug = false }: Vint
 	const [screenSize, setScreenSize] = useState<[number, number]>([0.4, 0.8]);
 	const [boxDepth, setBoxDepth] = useState(0.1);
 	const [screenReady, setScreenReady] = useState(false);
+	const [deskAligned, setDeskAligned] = useState(false);
+	const screenMeshRef = useRef<THREE.Mesh | null>(null);
 
 	const SCREEN_MESH_NAME = 'Cube027_Monitor_0';
+
+	// Hide the original screen mesh so our custom terminal renders on top
+	const updateScreenMeshVisibility = useCallback(() => {
+		const mesh = screenMeshRef.current;
+		if (!mesh) return;
+		if (mesh.material) {
+			const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+			materials.forEach((mat) => {
+				const material = mat as THREE.MeshStandardMaterial;
+				material.transparent = true;
+				material.opacity = 0;
+				material.needsUpdate = true;
+			});
+		}
+		mesh.visible = false;
+	}, []);
 
 	// Enable shadows on all meshes in the computer model
 	useEffect(() => {
@@ -46,8 +55,12 @@ export function VintageComputer({ onScreenClick, deskTopY, debug = false }: Vint
 	}, [scene]);
 
 	// Compute computer base and align to desk top when available
-	useEffect(() => {
-		if (!groupRef.current) return;
+	useLayoutEffect(() => {
+		if (!groupRef.current) {
+			setDeskAligned(false);
+			return;
+		}
+		setDeskAligned(false);
 		groupRef.current.updateWorldMatrix(true, true);
 		const box = new THREE.Box3().setFromObject(groupRef.current);
 		if (deskTopY != null) {
@@ -55,46 +68,40 @@ export function VintageComputer({ onScreenClick, deskTopY, debug = false }: Vint
 			const offset = deskTopY - minY + 0.005; // small epsilon to avoid z-fighting
 			setComputerY(offset);
 		}
-	}, [deskTopY]);
+		setDeskAligned(true);
+	}, [deskTopY, scene]);
 
 	// Locate the dedicated screen mesh and align the overlay to it
-	useEffect(() => {
+	useLayoutEffect(() => {
 		if (!groupRef.current) return;
 		const base = groupRef.current;
+		setScreenReady(false);
+		screenMeshRef.current = null;
 
 		// Use requestAnimationFrame to ensure React has applied position updates
-		// before we calculate screen position
+		// before we calculate screen and button positions
 		const handle = requestAnimationFrame(() => {
 			base.updateWorldMatrix(true, true);
 
-			const toMesh = (obj: THREE.Object3D | null | undefined): THREE.Mesh | null => {
-				return obj && (obj as THREE.Mesh).isMesh ? (obj as THREE.Mesh) : null;
-			};
-
-			// Debug: List all available mesh names in the scene
-			const allMeshes: string[] = [];
-			base.traverse((child) => {
-				if ((child as THREE.Mesh).isMesh) {
-					allMeshes.push(child.name);
-				}
-			});
-			console.log('All available meshes:', allMeshes);
+			const toMesh = (obj: THREE.Object3D | null | undefined): THREE.Mesh | null =>
+				obj && (obj as THREE.Mesh).isMesh ? (obj as THREE.Mesh) : null;
 
 			const screenNode = toMesh(base.getObjectByName(SCREEN_MESH_NAME));
-			console.log('Looking for mesh:', SCREEN_MESH_NAME);
-			console.log('Found screen node:', screenNode);
+			if (debug) {
+				const allMeshes: string[] = [];
+				base.traverse((child) => {
+					if ((child as THREE.Mesh).isMesh) {
+						allMeshes.push(child.name);
+					}
+				});
+				console.log('All available meshes:', allMeshes);
+				console.log('Looking for mesh:', SCREEN_MESH_NAME);
+				console.log('Found screen node:', screenNode);
+			}
 
 			if (screenNode) {
-				// Make the screen mesh transparent so terminal display shows through
-				if (screenNode.material) {
-					const materials = Array.isArray(screenNode.material) ? screenNode.material : [screenNode.material];
-					materials.forEach((mat) => {
-						const material = mat as THREE.MeshStandardMaterial;
-						material.transparent = true;
-						material.opacity = 0;
-						material.needsUpdate = true;
-					});
-				}
+				screenMeshRef.current = screenNode;
+				updateScreenMeshVisibility();
 
 				screenNode.updateWorldMatrix(true, true);
 				base.updateWorldMatrix(true, true);
@@ -126,21 +133,24 @@ export function VintageComputer({ onScreenClick, deskTopY, debug = false }: Vint
 				// Move right by 2% of width, up by 15% of height, forward in front of mesh
 				const xOffset = width * -0.019;
 				const yOffset = height * 0.11;
-				const zOffset = thickness * 4.3; // Position well in front to avoid overlap
+				const zOffset = thickness * 3.75; // Position well in front to avoid overlap
 
 				setScreenPos([localPos.x + xOffset, localPos.y + yOffset, localPos.z + zOffset]);
 				setClickPos([localPos.x + xOffset, localPos.y + yOffset, localPos.z + zOffset + 0.02]);
 
 				// Align terminal orientation with the underlying mesh rotation
-				setScreenRot([0, 0, 0]);
+				setScreenRot([euler.x, euler.y, euler.z]);
 
 				// Set terminal size relative to mesh - use 40% of mesh dimensions
-				setScreenSize([width * 0.36, height * 0.36]);
-				console.log('Screen size set to:', [width * 0.4, height * 0.4]);
-				console.log('Screen position:', [localPos.x + xOffset, localPos.y + yOffset, localPos.z + zOffset]);
-				console.log('Screen rotation:', [euler.x, euler.y, euler.z]);
-				console.log('Mesh dimensions (w,h,d):', [width, height, thickness]);
+				setScreenSize([width * 0.38, height * 0.37]);
+				if (debug) {
+					console.log('Screen size set to:', [width * 0.4, height * 0.4]);
+					console.log('Screen position:', [localPos.x + xOffset, localPos.y + yOffset, localPos.z + zOffset]);
+					console.log('Screen rotation:', [euler.x, euler.y, euler.z]);
+					console.log('Mesh dimensions (w,h,d):', [width, height, thickness]);
+				}
 				setBoxDepth(thickness * 2);
+				setScreenReady(true);
 				return;
 			}
 
@@ -162,52 +172,63 @@ export function VintageComputer({ onScreenClick, deskTopY, debug = false }: Vint
 			const height = compSize.y * 0.4;
 			setScreenSize([width, height]);
 			setBoxDepth(0.05);
+			setScreenReady(true);
 		});
 
 		return () => cancelAnimationFrame(handle);
-	}, [scene, computerY]);
+	}, [scene, computerY, debug, updateScreenMeshVisibility]);
 
 	return (
-		<group ref={groupRef} position={[0, computerY, 0]} scale={0.7}>
+		<group ref={groupRef} position={[0, computerY, 0]} scale={0.7} visible={screenReady && deskAligned}>
 			{/* Computer terminal model */}
 			<primitive object={scene} scale={1} castShadow receiveShadow />
-			
-			{/* Invisible clickable area for the screen - aligned to model */}
-			<mesh
-				position={clickPos}
-				rotation={screenRot}
-				onClick={(e) => {
-					e.stopPropagation();
-					if (onScreenClick) {
-						onScreenClick();
-					}
-				}}
-				onPointerOver={(e) => {
-					e.stopPropagation();
-					setIsHovered(true);
-					document.body.style.cursor = 'pointer';
-				}}
-				onPointerOut={(e) => {
-					e.stopPropagation();
-					setIsHovered(false);
-					document.body.style.cursor = 'auto';
-				}}
-			>
-				<boxGeometry args={[screenSize[0] * 1.03, screenSize[1] * 1.03, boxDepth]} />
-				<meshBasicMaterial transparent opacity={0} />
-			</mesh>
 
-			{/* Terminal display - aligned to model screen */}
-			<group position={screenPos} rotation={screenRot}>
-				<pointLight
-					color="#9ffdcb"
-					position={[0, 0, 0.12]}
-					intensity={1.1}
-					distance={1.6}
-					decay={2}
-				/>
-				<TerminalScreen isHighlighted={isHovered} width={screenSize[0]} height={screenSize[1]} offset={0} />
-			</group>
+			{/* Invisible clickable area for the screen - aligned to model */}
+			{screenReady && (
+				<>
+					<mesh
+						position={clickPos}
+						rotation={screenRot}
+						onClick={(e) => {
+							e.stopPropagation();
+							if (onScreenClick) {
+								onScreenClick();
+							}
+						}}
+						onPointerOver={(e) => {
+							e.stopPropagation();
+							setIsHovered(true);
+							document.body.style.cursor = 'pointer';
+						}}
+						onPointerOut={(e) => {
+							e.stopPropagation();
+							setIsHovered(false);
+							document.body.style.cursor = 'auto';
+						}}
+					>
+						<boxGeometry args={[screenSize[0] * 1.03, screenSize[1] * 1.03, boxDepth]} />
+						<meshBasicMaterial transparent opacity={0} />
+					</mesh>
+
+					{/* Terminal display - aligned to model screen - always visible */}
+					<group position={screenPos} rotation={[0, 0.01, 0]}>
+						<pointLight
+							color="#9ffdcb"
+							position={[0, 0, 0.12]}
+							intensity={0.4}
+							distance={1.2}
+							decay={2}
+						/>
+						<TerminalScreen
+							isHighlighted={isHovered}
+							width={screenSize[0]}
+							height={screenSize[1]}
+							offset={0}
+							bootSignal={Date.now()}
+						/>
+					</group>
+				</>
+			)}
 		</group>
 	);
 }

@@ -34,6 +34,15 @@ body {
 	transition: opacity 1.2s ease-out, transform 1.2s ease-out;
 }
 
+.scene-container.is-loading {
+	opacity: 0;
+	pointer-events: none;
+}
+
+.scene-container.loaded {
+	opacity: 1;
+}
+
 .scene-container.fade-out {
 	opacity: 0;
 	transform: scale(1.2);
@@ -75,6 +84,36 @@ canvas {
 	50% {
 		opacity: 0.9;
 	}
+}
+
+.cli-loader {
+	position: fixed;
+	inset: 0;
+	display: flex;
+	align-items: flex-start;
+	justify-content: flex-start;
+	background: rgba(4, 8, 4, 0.96);
+	z-index: 999;
+	transition: opacity 0.6s ease, visibility 0.6s ease;
+	font-family: "Courier New", Courier, monospace;
+	color: #9ffdcb;
+}
+
+.cli-loader--complete {
+	opacity: 0;
+	visibility: hidden;
+	pointer-events: none;
+}
+
+.cli-loader__content {
+	padding: 48px 64px;
+}
+
+.cli-loader__text {
+	white-space: pre;
+	font-size: 16px;
+	line-height: 1.6;
+	max-width: 520px;
 }
 
 

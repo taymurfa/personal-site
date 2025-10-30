@@ -7,9 +7,10 @@ import * as THREE from 'three';
 
 interface RetroStudySceneProps {
 	onEnterTerminal?: () => void;
+	assetsReady?: boolean;
 }
 
-export function RetroStudyScene({ onEnterTerminal }: RetroStudySceneProps) {
+export function RetroStudyScene({ onEnterTerminal, assetsReady = false }: RetroStudySceneProps) {
     const [deskTopY, setDeskTopY] = useState<number | null>(null);
     const furnitureRef = useRef<THREE.Group>(null);
     const [furnitureZ, setFurnitureZ] = useState(0);
@@ -45,20 +46,14 @@ export function RetroStudyScene({ onEnterTerminal }: RetroStudySceneProps) {
 
 	return (
 		<>
-			{/* Green glow from the computer screen */}
-			<pointLight
-				position={[0, 0, 0.3]}
-				intensity={0.5}
-				distance={2}
-				color="#00ff00"
-				decay={2}
-			/>
-
             {/* Desk with computer setup */}
             <group ref={furnitureRef} position={[0, furnitureY, furnitureZ]}>
                 <Desk onBounds={handleDeskBounds} />
-                <group position={[0, 0, -0.5]}>
-                    <VintageComputer onScreenClick={handleScreenClick} deskTopY={deskTopY ?? undefined} debug={true} />
+                <group position={[0, 0, -0.4]}>
+                    <VintageComputer
+						onScreenClick={handleScreenClick}
+						deskTopY={deskTopY ?? undefined}
+					/>
                 </group>
                 <DeskLamp deskTopY={deskTopY ?? undefined} />
             </group>
