@@ -81,16 +81,21 @@ export function TerminalScreen({
 		}
 	}, [canvasBundle.texture, onTextureReady]);
 
-	const drawText = useCallback(
-		(charsToShow: number) => {
+	const renderScreen = useCallback(
+		(charsToShow: number, boot: number, elapsed: number, highlight: boolean) => {
 			const { canvas, ctx, texture } = canvasBundle;
 			const lineHeight = 35;
 
-			ctx.fillStyle = '#000000';
+			ctx.setTransform(1, 0, 0, 1, 0, 0);
+			ctx.fillStyle = '#030403';
 			ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-			ctx.fillStyle = '#00ff00';
 			ctx.font = 'bold 31px "Courier New", monospace';
+			ctx.textBaseline = 'top';
+
+			const horizontalPhase = THREE.MathUtils.smoothstep(0, 0.4, boot);
+			const globalFade = THREE.MathUtils.smoothstep(0, 0.8, boot);
+			const imageReveal = THREE.MathUtils.smoothstep(0.35, 0.85, boot);
 
 			const maxLineWidth = textLines.reduce(
 				(max, line) => Math.max(max, ctx.measureText(line).width),
@@ -108,6 +113,18 @@ export function TerminalScreen({
 				cursorLine = 0;
 				cursorChar = 0;
 			}
+
+			const collapse = THREE.MathUtils.lerp(0.04, 1, imageReveal);
+
+			ctx.save();
+			ctx.translate(canvas.width * 0.5, canvas.height * 0.5);
+			ctx.scale(1, collapse);
+			ctx.translate(-canvas.width * 0.5, -canvas.height * 0.5);
+
+			ctx.globalAlpha = imageReveal;
+			ctx.fillStyle = highlight ? '#6cff9c' : '#00ff00';
+			ctx.shadowColor = highlight ? '#4cff9a' : 'rgba(0,0,0,0)';
+			ctx.shadowBlur = highlight ? 10 : 0;
 
 			textLines.forEach((line, index) => {
 				if (remaining <= 0) {
@@ -140,9 +157,51 @@ export function TerminalScreen({
 				ctx.fillRect(cursorX, cursorY + cursorHeight + 4, 16, 4);
 			}
 
+			ctx.restore();
+
+			// Additional fade overlay while booting
+			if (globalFade < 1) {
+				ctx.save();
+				ctx.globalAlpha = 1 - globalFade;
+				ctx.fillStyle = '#010201';
+				ctx.fillRect(0, 0, canvas.width, canvas.height);
+				ctx.restore();
+			}
+
+			// Power-on horizontal beam sweep
+			if (boot < 1) {
+				const beamAlpha = (1 - imageReveal) * 0.7;
+				if (beamAlpha > 0.01) {
+					const beamWidth = canvas.width * THREE.MathUtils.lerp(0.35, 1, horizontalPhase);
+					const beamX = (canvas.width - beamWidth) * 0.5;
+					const beamHeight = canvas.height * THREE.MathUtils.lerp(0.02, 0.14, 1 - imageReveal);
+					const beamCenter = canvas.height * 0.5 + Math.sin(elapsed * 1.25) * canvas.height * 0.03;
+					const gradient = ctx.createLinearGradient(0, beamCenter - beamHeight, 0, beamCenter + beamHeight);
+					gradient.addColorStop(0, 'rgba(120, 255, 200, 0)');
+					gradient.addColorStop(0.5, `rgba(180, 255, 210, ${beamAlpha})`);
+					gradient.addColorStop(1, 'rgba(120, 255, 200, 0)');
+					ctx.save();
+					ctx.globalCompositeOperation = 'lighter';
+					ctx.fillStyle = gradient;
+					ctx.fillRect(beamX, beamCenter - beamHeight, beamWidth, beamHeight * 2);
+					ctx.restore();
+				}
+			}
+
+			// Slight flicker variation tied to boot state and elapsed time
+			const flickerStrength = highlight ? 0.05 : 0.025;
+			const flicker = (Math.sin(elapsed * 6.3) + Math.sin(elapsed * 13.7)) * 0.5 * flickerStrength * globalFade;
+			if (flicker > 0) {
+				ctx.save();
+				ctx.globalAlpha = flicker;
+				ctx.fillStyle = 'rgba(140, 255, 160, 0.08)';
+				ctx.fillRect(0, 0, canvas.width, canvas.height);
+				ctx.restore();
+			}
+
 			// Overlay subtle scanlines to keep CRT feel when mapped onto the original screen
 			ctx.save();
-			ctx.globalAlpha = 0.07;
+			ctx.globalAlpha = 0.07 * globalFade;
 			ctx.fillStyle = '#001000';
 			for (let y = 0; y < canvas.height; y += 3) {
 				ctx.fillRect(0, y, canvas.width, 1);
@@ -243,10 +302,6 @@ export function TerminalScreen({
 		}
 	}, []);
 
-	useEffect(() => {
-		drawText(visibleChars);
-	}, [visibleChars, drawText]);
-
 	// Animate the shader and typing animation
 	useFrame(({ clock }, delta) => {
 		// Update shader uniforms if material exists
@@ -269,6 +324,7 @@ export function TerminalScreen({
 			if (materialRef.current) {
 				materialRef.current.uniforms.powerOn.value = 0;
 			}
+			renderScreen(visibleCharsRef.current, 0, clock.getElapsedTime(), isHighlighted);
 			return;
 		}
 
@@ -294,6 +350,8 @@ export function TerminalScreen({
 				updateVisibleChars(targetChars);
 			}
 		}
+
+		renderScreen(visibleCharsRef.current, powerOnProgress.current, clock.getElapsedTime(), isHighlighted);
 	});
 
 	const resetBoot = useCallback(() => {
