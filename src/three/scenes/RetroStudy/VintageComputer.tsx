@@ -1,16 +1,27 @@
 import { useEffect, useRef, useState } from 'react';
 import { useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
+import { GLTF } from 'three-stdlib';
 import { TerminalScreen } from './TerminalScreen';
 
 interface VintageComputerProps {
 	onScreenClick?: () => void;
 	deskTopY?: number; // world-space Y of desk surface
+	debug?: boolean; // show debug helpers for screen alignment
 }
 
-export function VintageComputer({ onScreenClick, deskTopY }: VintageComputerProps) {
+type ComputerTerminalGLTF = GLTF & {
+	nodes: {
+		'Comp_Screen.000_TerminalMaterial_0': THREE.Mesh;
+		'Comp_Screen.002_TerminalMaterial_0': THREE.Mesh;
+	};
+	materials: Record<string, THREE.Material | THREE.Material[]>;
+};
+
+
+export function VintageComputer({ onScreenClick, deskTopY, debug = false }: VintageComputerProps) {
 	const [isHovered, setIsHovered] = useState(false);
-	const { scene } = useGLTF('/src/assets/models/computer_terminal.glb');
+	const { scene } = useGLTF('/src/assets/models/apple_ii_computer.glb');
 
 	// Refs and state for alignment
 	const groupRef = useRef<THREE.Group>(null);
@@ -18,28 +29,21 @@ export function VintageComputer({ onScreenClick, deskTopY }: VintageComputerProp
 	const [screenPos, setScreenPos] = useState<[number, number, number]>([0, 0, 0.5]);
 	const [clickPos, setClickPos] = useState<[number, number, number]>([0, 0, 0.5]);
 	const [screenRot, setScreenRot] = useState<[number, number, number]>([0, 0, 0]);
-	const [screenSize, setScreenSize] = useState<[number, number]>([0.8, 0.6]);
+	const [screenSize, setScreenSize] = useState<[number, number]>([0.4, 0.8]);
 	const [boxDepth, setBoxDepth] = useState(0.1);
+	const [screenReady, setScreenReady] = useState(false);
 
-	// Hardcoded screen layout relative to the computer's bounding box
-	// Set USE_HARDCODED_SCREEN = true to force these values.
-	const USE_HARDCODED_SCREEN = true;
-	const HARDCODED = {
-		// Fractions relative to the computer's bounding box
-		// X is centered by default via 0.0 offset from center
-		xOffsetFracFromCenter: -0.18, // shift left toward CRT area
-		// Y measured from bottom of the chassis (0 = bottom, 1 = top)
-		yFromBottomFrac: 0.66,
-		// Z recess measured from front face in fractions of depth (0 = front face)
-		recessDepthFrac: 0.22,
-		// Size as a fraction of the chassis width/height
-		widthFrac: 0.42,
-		heightFrac: 0.27,
-		// How far to lift the overlay off the surface to avoid z-fighting
-		offset: 0.012,
-		// Optional tilt (in radians) if needed
-		rotation: { x: 0, y: 0, z: 0 },
-	};
+	const SCREEN_MESH_NAME = 'Cube027_Monitor_0';
+
+	// Enable shadows on all meshes in the computer model
+	useEffect(() => {
+		scene.traverse((child) => {
+			if ((child as THREE.Mesh).isMesh) {
+				child.castShadow = true;
+				child.receiveShadow = true;
+			}
+		});
+	}, [scene]);
 
 	// Compute computer base and align to desk top when available
 	useEffect(() => {
@@ -53,247 +57,121 @@ export function VintageComputer({ onScreenClick, deskTopY }: VintageComputerProp
 		}
 	}, [deskTopY]);
 
-    // Try to locate the screen mesh within the model and align overlay
-    useEffect(() => {
-        if (!groupRef.current) return;
-        groupRef.current.updateWorldMatrix(true, true);
+	// Locate the dedicated screen mesh and align the overlay to it
+	useEffect(() => {
+		if (!groupRef.current) return;
+		const base = groupRef.current;
 
-        // First try: derive from a glass panel if present
-        const findGlassPanel = (): {
-            node: THREE.Object3D;
-            box: THREE.Box3;
-            worldQuat: THREE.Quaternion;
-            center: THREE.Vector3;
-            size: THREE.Vector3;
-            normal: THREE.Vector3;
-        } | null => {
-            let bestNode: THREE.Object3D | null = null;
-            let bestArea = -Infinity;
-            const tmpBox = new THREE.Box3();
-            const tmpSize = new THREE.Vector3();
+		// Use requestAnimationFrame to ensure React has applied position updates
+		// before we calculate screen position
+		const handle = requestAnimationFrame(() => {
+			base.updateWorldMatrix(true, true);
 
-            scene.traverse((obj) => {
-                const mesh = obj as THREE.Mesh;
-                // Only consider meshes
-                if (!mesh || !(mesh as any).isMesh) return;
-                // Determine if this looks like glass
-                let looksLikeGlass = false;
-                const n = (obj.name || '').toLowerCase();
-                if (n.includes('glass') || n.includes('screen_glass') || n.includes('crt_glass')) looksLikeGlass = true;
-                const mat: any = (mesh.material as any);
-                if (mat) {
-                    const matName = (mat.name || '').toLowerCase();
-                    if (matName.includes('glass') || matName.includes('screen')) looksLikeGlass = true;
-                    if (mat.transparent || (typeof mat.opacity === 'number' && mat.opacity < 0.95)) looksLikeGlass = true;
-                }
-                if (!looksLikeGlass) return;
+			const toMesh = (obj: THREE.Object3D | null | undefined): THREE.Mesh | null => {
+				return obj && (obj as THREE.Mesh).isMesh ? (obj as THREE.Mesh) : null;
+			};
 
-                tmpBox.setFromObject(mesh);
-                tmpBox.getSize(tmpSize);
-                const area = tmpSize.x * tmpSize.y + tmpSize.y * tmpSize.z + tmpSize.z * tmpSize.x;
-                if (area > bestArea) {
-                    bestArea = area;
-                    bestNode = obj;
-                }
-            });
+			// Debug: List all available mesh names in the scene
+			const allMeshes: string[] = [];
+			base.traverse((child) => {
+				if ((child as THREE.Mesh).isMesh) {
+					allMeshes.push(child.name);
+				}
+			});
+			console.log('All available meshes:', allMeshes);
 
-            if (!bestNode) return null;
+			const screenNode = toMesh(base.getObjectByName(SCREEN_MESH_NAME));
+			console.log('Looking for mesh:', SCREEN_MESH_NAME);
+			console.log('Found screen node:', screenNode);
 
-            const box = new THREE.Box3().setFromObject(bestNode);
-            const size = new THREE.Vector3();
-            box.getSize(size);
-            const center = new THREE.Vector3();
-            box.getCenter(center);
-            const worldQuat = new THREE.Quaternion();
-            bestNode!.getWorldQuaternion(worldQuat);
-            // Assume the glass plane normal is its local +Z axis
-            const normal = new THREE.Vector3(0, 0, 1).applyQuaternion(worldQuat).normalize();
-            return { node: bestNode, box, worldQuat, center, size, normal };
-        };
+			if (screenNode) {
+				// Make the screen mesh transparent so terminal display shows through
+				if (screenNode.material) {
+					const materials = Array.isArray(screenNode.material) ? screenNode.material : [screenNode.material];
+					materials.forEach((mat) => {
+						const material = mat as THREE.MeshStandardMaterial;
+						material.transparent = true;
+						material.opacity = 0;
+						material.needsUpdate = true;
+					});
+				}
 
-        const glass = findGlassPanel();
-        if (glass) {
-            const { center, size, worldQuat, normal } = glass;
-            // Screen just behind the glass
-            const depthBehind = 0.01;
-            const screenWorldPos = center.clone().add(normal.clone().multiplyScalar(-depthBehind));
-            const localPos = groupRef.current.worldToLocal(screenWorldPos.clone());
-            const invGroupQuat = groupRef.current.getWorldQuaternion(new THREE.Quaternion()).invert();
-            const localQuat = worldQuat.clone().premultiply(invGroupQuat);
-            const euler = new THREE.Euler().setFromQuaternion(localQuat);
+				screenNode.updateWorldMatrix(true, true);
+				base.updateWorldMatrix(true, true);
 
-            // Slightly smaller than the glass area to avoid borders
-            const w = Math.max(0.05, Math.min(size.x, size.y) === size.x ? size.x * 0.9 : size.x * 0.9);
-            const h = Math.max(0.05, Math.min(size.x, size.y) === size.y ? size.y * 0.9 : size.y * 0.9);
+				// Get screen dimensions from bounding box
+				const geometry = screenNode.geometry;
+				if (!geometry.boundingBox) geometry.computeBoundingBox();
+				const bbox = geometry.boundingBox!;
+				const size = new THREE.Vector3();
+				bbox.getSize(size);
 
-            setScreenPos([localPos.x, localPos.y, localPos.z]);
-            setScreenRot([euler.x, euler.y, euler.z]);
-            setScreenSize([w, h]);
-            setBoxDepth(Math.max(0.06, Math.min(0.14, Math.max(w, h) * 0.1)));
+				// Get the largest two dimensions for width and height
+				const dims = [size.x, size.y, size.z].sort((a, b) => b - a);
+				const [width, height, thickness] = dims;
 
-            // Keep clickable area slightly in front of the glass so rays are not blocked
-            const clickWorldPos = center.clone().add(normal.clone().multiplyScalar(0.008));
-            const clickLocal = groupRef.current.worldToLocal(clickWorldPos.clone());
-            setClickPos([clickLocal.x, clickLocal.y, clickLocal.z]);
-            return;
-        }
+				// Get screen world transform and convert to local space
+				const worldPos = new THREE.Vector3();
+				const worldQuat = new THREE.Quaternion();
+				const baseWorldQuat = new THREE.Quaternion();
+				screenNode.getWorldPosition(worldPos);
+				screenNode.getWorldQuaternion(worldQuat);
+				base.getWorldQuaternion(baseWorldQuat);
 
-        // If explicitly requested, or if glass not found, use hardcoded offsets relative to the model bounds
-        if (USE_HARDCODED_SCREEN) {
-            const compBox = new THREE.Box3().setFromObject(groupRef.current);
-            const compSize = new THREE.Vector3();
-            compBox.getSize(compSize);
-            const compCenter = new THREE.Vector3();
-            compBox.getCenter(compCenter);
+				const localPos = base.worldToLocal(worldPos.clone());
+				const localQuat = baseWorldQuat.clone().invert().multiply(worldQuat);
+				const euler = new THREE.Euler().setFromQuaternion(localQuat, 'XYZ');
 
-            const frontZ = compBox.max.z;
-            const screenZ = frontZ - Math.max(0.02, compSize.z * HARDCODED.recessDepthFrac);
-            const screenY = compBox.min.y + compSize.y * HARDCODED.yFromBottomFrac;
-            const screenX = compCenter.x + compSize.x * HARDCODED.xOffsetFracFromCenter;
+				// Position relative to mesh dimensions - center the terminal on the screen
+				// Move right by 2% of width, up by 15% of height, forward in front of mesh
+				const xOffset = width * -0.019;
+				const yOffset = height * 0.11;
+				const zOffset = thickness * 4.3; // Position well in front to avoid overlap
 
-            const screenLocal = groupRef.current.worldToLocal(new THREE.Vector3(screenX, screenY, screenZ));
+				setScreenPos([localPos.x + xOffset, localPos.y + yOffset, localPos.z + zOffset]);
+				setClickPos([localPos.x + xOffset, localPos.y + yOffset, localPos.z + zOffset + 0.02]);
 
-            setScreenPos([screenLocal.x, screenLocal.y, screenLocal.z]);
-            setScreenRot([HARDCODED.rotation.x, HARDCODED.rotation.y, HARDCODED.rotation.z]);
-            const w = compSize.x * HARDCODED.widthFrac;
-            const h = compSize.y * HARDCODED.heightFrac;
-            setScreenSize([w, h]);
-            setBoxDepth(Math.max(0.06, Math.min(0.14, Math.max(w, h) * 0.1)));
-            setClickPos([screenLocal.x, screenLocal.y, screenLocal.z + HARDCODED.offset]);
-            return; // Skip heuristic detection when hardcoded is active
-        }
+				// Align terminal orientation with the underlying mesh rotation
+				setScreenRot([0, 0, 0]);
 
-        // Establish forward direction for the computer group (screen should face this way)
-        const groupWorldQuat = new THREE.Quaternion();
-        groupRef.current.getWorldQuaternion(groupWorldQuat);
-        const groupForward = new THREE.Vector3(0, 0, 1).applyQuaternion(groupWorldQuat).normalize();
+				// Set terminal size relative to mesh - use 40% of mesh dimensions
+				setScreenSize([width * 0.36, height * 0.36]);
+				console.log('Screen size set to:', [width * 0.4, height * 0.4]);
+				console.log('Screen position:', [localPos.x + xOffset, localPos.y + yOffset, localPos.z + zOffset]);
+				console.log('Screen rotation:', [euler.x, euler.y, euler.z]);
+				console.log('Mesh dimensions (w,h,d):', [width, height, thickness]);
+				setBoxDepth(thickness * 2);
+				return;
+			}
 
-        // Collect mesh candidates with heuristic filters
-        let bestNode: THREE.Object3D | undefined = undefined;
-        let bestScore = -Infinity;
-        scene.traverse((obj) => {
-            const mesh = obj as THREE.Mesh;
-            if (!mesh.geometry) return;
+			// Final fallback: approximate placement based on whole chassis
+			const compBox = new THREE.Box3().setFromObject(base);
+			const compSize = new THREE.Vector3();
+			compBox.getSize(compSize);
+			const compCenter = new THREE.Vector3();
+			compBox.getCenter(compCenter);
 
-            // Bounding box in world space
-            const box = new THREE.Box3().setFromObject(mesh);
-            const size = new THREE.Vector3();
-            box.getSize(size);
-            const center = new THREE.Vector3();
-            box.getCenter(center);
+			const screenY = compBox.min.y + compSize.y * 0.64;
+			const screenZ = compBox.max.z - compSize.z * 0.12;
+			const screenX = compCenter.x - compSize.x * 0.18;
+			const fallbackPos = base.worldToLocal(new THREE.Vector3(screenX, screenY, screenZ));
+			setScreenPos([fallbackPos.x, fallbackPos.y, fallbackPos.z]);
+			setClickPos([fallbackPos.x, fallbackPos.y, fallbackPos.z + 0.01]);
+			setScreenRot([0, 0, 0]);
+			const width = compSize.x * 0.8;
+			const height = compSize.y * 0.4;
+			setScreenSize([width, height]);
+			setBoxDepth(0.05);
+		});
 
-            const dims = [size.x, size.y, size.z] as const;
-            const minIdx = dims.indexOf(Math.min(...dims));
-            const thickness = dims[minIdx];
-            const width = dims[(minIdx + 1) % 3];
-            const height = dims[(minIdx + 2) % 3];
-            const aspect = width > height ? width / height : height / width;
-
-            // World normal is the axis of smallest dimension transformed by world rotation
-            const nodeWorldQuat = new THREE.Quaternion();
-            obj.getWorldQuaternion(nodeWorldQuat);
-            const axis = minIdx === 0 ? new THREE.Vector3(1, 0, 0) : minIdx === 1 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(0, 0, 1);
-            const normal = axis.clone().applyQuaternion(nodeWorldQuat).normalize();
-
-            const facing = normal.dot(groupForward); // >0 means facing forward
-
-            // Heuristics: thin surface, plausible aspect, facing forward
-            const thinEnough = thickness < Math.max(0.05, Math.max(width, height) * 0.2);
-            const aspectOk = aspect >= 1.1 && aspect <= 2.2; // ~ 5:4 .. 16:9 range
-            const facingOk = facing > 0.4;
-            if (!(thinEnough && aspectOk && facingOk)) return;
-
-            // Score: prefer more forward (larger groupForward dot center), larger area, and stronger facing
-            const forwardness = center.dot(groupForward);
-            const area = width * height;
-            const score = forwardness * 2 + area * 0.5 + facing;
-            if (score > bestScore) {
-                bestScore = score;
-                bestNode = obj;
-            }
-        });
-
-        let screenNode: THREE.Object3D | undefined = bestNode;
-        // Fallback: try name-based selection if heuristic didn't find anything
-        if (!screenNode) {
-            const nameCandidates: THREE.Object3D[] = [];
-            scene.traverse((obj) => {
-                const name = (obj.name || '').toLowerCase();
-                if (
-                    name.includes('screen') ||
-                    name.includes('display') ||
-                    name.includes('monitor') ||
-                    name.includes('crt') ||
-                    name.includes('glass') ||
-                    name.includes('panel') ||
-                    name.includes('lcd')
-                ) {
-                    nameCandidates.push(obj);
-                }
-            });
-            screenNode = nameCandidates[0];
-        }
-
-        if (screenNode) {
-            // Bounding box for size and center (world-space)
-            const box = new THREE.Box3().setFromObject(screenNode);
-            const center = new THREE.Vector3();
-            box.getCenter(center);
-            const size = new THREE.Vector3();
-            box.getSize(size);
-
-            // Compute world orientation of the screen
-            const screenWorldQuat = new THREE.Quaternion();
-            screenNode.getWorldQuaternion(screenWorldQuat);
-            const invGroupQuat = groupWorldQuat.clone().invert();
-            const localQuat = screenWorldQuat.clone().premultiply(invGroupQuat);
-            const euler = new THREE.Euler().setFromQuaternion(localQuat);
-
-            // Offset along screen normal so overlay sits just above the mesh
-            const normal = new THREE.Vector3(0, 0, 1).applyQuaternion(screenWorldQuat).normalize();
-            const overlayOffset = 0.012;
-            const worldBehind = center.clone().add(normal.clone().multiplyScalar(-overlayOffset));
-            const worldFront = center.clone().add(normal.clone().multiplyScalar(overlayOffset));
-            const localBehind = groupRef.current.worldToLocal(worldBehind.clone());
-            const localFront = groupRef.current.worldToLocal(worldFront.clone());
-
-            setScreenPos([localBehind.x, localBehind.y, localBehind.z]);
-            setClickPos([localFront.x, localFront.y, localFront.z]);
-            setScreenRot([euler.x, euler.y, euler.z]);
-            // Slightly shrink size to avoid z-fighting at edges
-            setScreenSize([size.x * 0.98, size.y * 0.98]);
-            setBoxDepth(Math.max(0.06, Math.min(0.15, Math.max(size.x, size.y) * 0.08)));
-        } else {
-            // Heuristic fallback: place a screen in the upper front region of the computer's bounding box
-            const compBox = new THREE.Box3().setFromObject(groupRef.current);
-            const compSize = new THREE.Vector3();
-            compBox.getSize(compSize);
-            const compCenter = new THREE.Vector3();
-            compBox.getCenter(compCenter);
-
-            const frontZ = compBox.max.z; // assume +Z is forward
-            const screenZ = frontZ - Math.max(0.05, compSize.z * 0.08); // slightly recessed
-            const screenY = compBox.min.y + compSize.y * 0.62; // upper portion above keyboard
-            const screenX = compCenter.x; // centered
-
-            const localPos = groupRef.current.worldToLocal(new THREE.Vector3(screenX, screenY, screenZ));
-            setScreenPos([localPos.x, localPos.y, localPos.z]);
-            setClickPos([localPos.x, localPos.y, localPos.z + 0.012]);
-            setScreenRot([0, 0, 0]);
-
-            // Size as a fraction of the overall chassis
-            const w = compSize.x * 0.55;
-            const h = compSize.y * 0.32;
-            setScreenSize([w, h]);
-            setBoxDepth(Math.max(0.06, Math.min(0.14, Math.max(w, h) * 0.1)));
-        }
-    }, [scene, computerY]);
+		return () => cancelAnimationFrame(handle);
+	}, [scene, computerY]);
 
 	return (
-		<group ref={groupRef} position={[0, computerY, 0]}>
+		<group ref={groupRef} position={[0, computerY, 0]} scale={0.7}>
 			{/* Computer terminal model */}
 			<primitive object={scene} scale={1} castShadow receiveShadow />
-
+			
 			{/* Invisible clickable area for the screen - aligned to model */}
 			<mesh
 				position={clickPos}
@@ -319,10 +197,17 @@ export function VintageComputer({ onScreenClick, deskTopY }: VintageComputerProp
 				<meshBasicMaterial transparent opacity={0} />
 			</mesh>
 
-            {/* Terminal display - aligned to model screen */}
-            <group position={screenPos} rotation={screenRot}>
-                <TerminalScreen isHighlighted={isHovered} width={screenSize[0]} height={screenSize[1]} offset={0.012} />
-            </group>
+			{/* Terminal display - aligned to model screen */}
+			<group position={screenPos} rotation={screenRot}>
+				<pointLight
+					color="#9ffdcb"
+					position={[0, 0, 0.12]}
+					intensity={1.1}
+					distance={1.6}
+					decay={2}
+				/>
+				<TerminalScreen isHighlighted={isHovered} width={screenSize[0]} height={screenSize[1]} offset={0} />
+			</group>
 		</group>
 	);
 }

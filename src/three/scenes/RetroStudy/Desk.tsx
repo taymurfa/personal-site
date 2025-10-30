@@ -20,7 +20,7 @@ export function Desk({ onReady, onBounds }: DeskProps) {
 	}, [scene, onReady]);
 
 	return (
-		<group ref={groupRef} position={[0, -1.9, 0]} scale={3}>
+		<group ref={groupRef} position={[0, -1.2, 0]} scale={1.7}>
 			<primitive object={scene} castShadow receiveShadow />
 		</group>
 	);

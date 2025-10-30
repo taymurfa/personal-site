@@ -1,9 +1,8 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { VintageComputer } from './VintageComputer';
 import { Desk } from './Desk';
-import { DeskLamp } from './DeskLamp';
 import { ChairModel } from './ChairModel';
-import { Environment } from '@react-three/drei';
+import { DeskLamp } from './DeskLamp';
 import * as THREE from 'three';
 
 interface RetroStudySceneProps {
@@ -46,26 +45,6 @@ export function RetroStudyScene({ onEnterTerminal }: RetroStudySceneProps) {
 
 	return (
 		<>
-			{/* Ambient lighting - very dim for moody atmosphere */}
-			<ambientLight intensity={0.15} color="#1a1a2e" />
-
-			{/* Subtle overhead light - dim and warm */}
-			<pointLight
-				position={[0, 3, -1]}
-				intensity={0.8}
-				distance={8}
-				color="#4a3520"
-				decay={2}
-			/>
-
-			{/* Subtle rim light from behind to separate objects */}
-			<pointLight
-				position={[0, 2, -3]}
-				intensity={0.3}
-				distance={6}
-				color="#2a2a3e"
-			/>
-
 			{/* Green glow from the computer screen */}
 			<pointLight
 				position={[0, 0, 0.3]}
@@ -78,10 +57,10 @@ export function RetroStudyScene({ onEnterTerminal }: RetroStudySceneProps) {
             {/* Desk with computer setup */}
             <group ref={furnitureRef} position={[0, furnitureY, furnitureZ]}>
                 <Desk onBounds={handleDeskBounds} />
-                <group position={[0, 0, 0]}>
-                    <VintageComputer onScreenClick={handleScreenClick} deskTopY={deskTopY ?? undefined} />
+                <group position={[0, 0, -0.5]}>
+                    <VintageComputer onScreenClick={handleScreenClick} deskTopY={deskTopY ?? undefined} debug={true} />
                 </group>
-                <DeskLamp />
+                <DeskLamp deskTopY={deskTopY ?? undefined} />
             </group>
 
             {/* Chair - replaced with uploaded asset */}
@@ -159,10 +138,8 @@ export function RetroStudyScene({ onEnterTerminal }: RetroStudySceneProps) {
 
 			{/* Atmospheric fog */}
 			<fog attach="fog" args={['#0a0808', 3, 12]} />
-
-			{/* Environment preset for subtle reflections */}
-			<Environment preset="night" />
 		</>
 	);
 }
+
 

@@ -19,7 +19,7 @@ export function ChairModel() {
     }, [scene]);
 
     return (
-        <group ref={groupRef} position={[0, yOffset, 2.2]} rotation={[0, Math.PI, 0]}>
+        <group ref={groupRef} position={[0.15, yOffset, -0.5]} rotation={[Math.PI * (5 / 180), 0, 0]} scale={1.05}>
             <primitive object={scene} castShadow receiveShadow />
         </group>
     );

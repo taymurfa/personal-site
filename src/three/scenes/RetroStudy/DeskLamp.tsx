@@ -1,14 +1,43 @@
-import { useRef } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
+import { useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 
-export function DeskLamp() {
+interface DeskLampProps {
+	deskTopY?: number;
+}
+
+export function DeskLamp({ deskTopY }: DeskLampProps) {
 	const lightRef = useRef<THREE.PointLight>(null);
-	const emissiveMeshRef = useRef<THREE.Mesh>(null);
+	const groupRef = useRef<THREE.Group>(null);
+	const { scene } = useGLTF('/src/assets/models/desk_lamp.glb');
+	const [lampY, setLampY] = useState(0);
+
+	// Enable shadows on all meshes in the lamp model
+	useEffect(() => {
+		scene.traverse((child) => {
+			if ((child as THREE.Mesh).isMesh) {
+				child.castShadow = true;
+				child.receiveShadow = true;
+			}
+		});
+	}, [scene]);
+
+	// Align lamp to desk top
+	useEffect(() => {
+		if (!groupRef.current) return;
+		groupRef.current.updateWorldMatrix(true, true);
+		const box = new THREE.Box3().setFromObject(groupRef.current);
+		if (deskTopY != null) {
+			const minY = box.min.y;
+			const offset = deskTopY - minY + 0.005;
+			setLampY(offset);
+		}
+	}, [deskTopY, scene]);
 
 	// Flicker animation
 	useFrame(({ clock }) => {
-		if (lightRef.current && emissiveMeshRef.current) {
+		if (lightRef.current) {
 			const time = clock.getElapsedTime();
 
 			// Create subtle flicker
@@ -16,77 +45,30 @@ export function DeskLamp() {
 			                Math.sin(time * 13) * 0.03 +
 			                Math.sin(time * 20) * 0.02;
 
-			const baseIntensity = 2.5;
+			const baseIntensity = 1.0;
 			lightRef.current.intensity = baseIntensity + flicker;
-
-			// Sync emissive intensity with light
-			if (emissiveMeshRef.current.material instanceof THREE.MeshStandardMaterial) {
-				emissiveMeshRef.current.material.emissiveIntensity = 0.8 + flicker * 0.3;
-			}
 		}
 	});
 
 	return (
-		<group position={[1.2, 0.2, 0.5]}>
-			{/* Lamp base */}
-			<mesh position={[0, -0.9, 0]} castShadow>
-				<cylinderGeometry args={[0.08, 0.1, 0.05, 16]} />
-				<meshStandardMaterial color="#2a2a2a" metalness={0.6} roughness={0.4} />
-			</mesh>
+		<group position={[1.2, lampY, 0.2]}>
+			<group ref={groupRef} rotation={[0, -Math.PI / 3, 0]} scale={0.7}>
+				{/* Desk lamp model */}
+				<primitive object={scene} scale={1} castShadow receiveShadow />
 
-			{/* Lamp arm - lower */}
-			<mesh position={[0, -0.65, 0]} rotation={[0, 0, -0.3]} castShadow>
-				<cylinderGeometry args={[0.02, 0.02, 0.5, 8]} />
-				<meshStandardMaterial color="#1a1a1a" metalness={0.7} roughness={0.3} />
-			</mesh>
-
-			{/* Lamp joint */}
-			<mesh position={[0.12, -0.42, 0]} castShadow>
-				<sphereGeometry args={[0.03, 8, 8]} />
-				<meshStandardMaterial color="#2a2a2a" metalness={0.6} roughness={0.4} />
-			</mesh>
-
-			{/* Lamp arm - upper */}
-			<mesh position={[0.22, -0.18, 0]} rotation={[0, 0, 0.5]} castShadow>
-				<cylinderGeometry args={[0.02, 0.02, 0.5, 8]} />
-				<meshStandardMaterial color="#1a1a1a" metalness={0.7} roughness={0.3} />
-			</mesh>
-
-			{/* Lamp shade */}
-			<mesh position={[0.35, 0.05, 0]} rotation={[Math.PI / 2, 0, 0]} castShadow>
-				<coneGeometry args={[0.12, 0.15, 16, 1, true]} />
-				<meshStandardMaterial
-					color="#2a3a2a"
-					metalness={0.5}
-					roughness={0.5}
-					side={THREE.DoubleSide}
+				{/* Point light */}
+				<pointLight
+					ref={lightRef}
+					position={[0, 0.3, 0]}
+					color="#ffa850"
+					intensity={1.0}
+					distance={2.5}
+					decay={2}
+					castShadow
+					shadow-mapSize-width={512}
+					shadow-mapSize-height={512}
 				/>
-			</mesh>
-
-			{/* Light bulb (emissive) */}
-			<mesh ref={emissiveMeshRef} position={[0.35, 0.0, 0]}>
-				<sphereGeometry args={[0.04, 8, 8]} />
-				<meshStandardMaterial
-					color="#ffd399"
-					emissive="#ff9933"
-					emissiveIntensity={0.8}
-					roughness={0.3}
-					metalness={0.1}
-				/>
-			</mesh>
-
-			{/* Point light */}
-			<pointLight
-				ref={lightRef}
-				position={[0.35, 0.0, 0]}
-				color="#ffa850"
-				intensity={2.5}
-				distance={5}
-				decay={2}
-				castShadow
-				shadow-mapSize-width={512}
-				shadow-mapSize-height={512}
-			/>
+			</group>
 		</group>
 	);
 }
