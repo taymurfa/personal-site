@@ -1,15 +1,20 @@
 import { useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react';
-import { useGLTF } from '@react-three/drei';
+import { useGLTF, RoundedBox } from '@react-three/drei';
+import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { TerminalScreen } from './TerminalScreen';
 
 interface VintageComputerProps {
 	onScreenClick?: () => void;
 	deskTopY?: number;
+	onZoomToScreen?: (screenWorldPos: THREE.Vector3) => void;
+	onPowerChange?: (isPoweredOn: boolean) => void;
 }
 
-export function VintageComputer({ onScreenClick, deskTopY }: VintageComputerProps) {
+export function VintageComputer({ onScreenClick, deskTopY, onZoomToScreen, onPowerChange }: VintageComputerProps) {
 	const [isHovered, setIsHovered] = useState(false);
+	const [isPowerButtonHovered, setIsPowerButtonHovered] = useState(false);
+	const [isPoweredOn, setIsPoweredOn] = useState(false);
 	const { scene } = useGLTF('/assets/models/apple_ii_computer.glb');
 
 	// Refs and state for alignment
@@ -23,34 +28,159 @@ export function VintageComputer({ onScreenClick, deskTopY }: VintageComputerProp
 	const [screenReady, setScreenReady] = useState(false);
 	const [deskAligned, setDeskAligned] = useState(false);
 	const screenMeshRef = useRef<THREE.Mesh | null>(null);
+	const [powerButtonPos, setPowerButtonPos] = useState<[number, number, number]>([0, 0, 0]);
 
 	const SCREEN_MESH_NAME = 'Cube027_Monitor_0';
 
-	// Hide the original screen mesh so our custom terminal renders on top
-	const updateScreenMeshVisibility = useCallback(() => {
-		const mesh = screenMeshRef.current;
-		if (!mesh) return;
-		if (mesh.material) {
-			const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-			materials.forEach((mat) => {
-				const material = mat as THREE.MeshStandardMaterial;
-				material.transparent = true;
-				material.opacity = 0;
-				material.needsUpdate = true;
-			});
+	// Store original screen material and track power-on animation
+	const originalScreenMaterial = useRef<THREE.Material | THREE.Material[] | null>(null);
+	const terminalTexture = useRef<THREE.Texture | null>(null);
+	const [bootTime, setBootTime] = useState<number | null>(null);
+	const [glowIntensity, setGlowIntensity] = useState(0);
+	const [terminalTextureReady, setTerminalTextureReady] = useState(false);
+	const screenMaterialRef = useRef<Array<THREE.MeshStandardMaterial | THREE.MeshPhysicalMaterial>>([]);
+
+	const disposeScreenMaterials = useCallback((materials: THREE.Material | THREE.Material[]) => {
+		if (Array.isArray(materials)) {
+			materials.forEach(mat => mat.dispose());
+		} else {
+			materials.dispose();
 		}
-		mesh.visible = false;
 	}, []);
 
-	// Enable shadows on all meshes in the computer model
+	// Callback to receive terminal texture
+	const handleTerminalTexture = useCallback((texture: THREE.Texture) => {
+		terminalTexture.current = texture;
+		setTerminalTextureReady(true);
+	}, []);
+
+	// Start boot animation when powered on
+	useEffect(() => {
+		if (isPoweredOn) {
+			setBootTime(Date.now());
+		} else {
+			setBootTime(null);
+			setGlowIntensity(0);
+		}
+		// Notify parent of power state change
+		if (onPowerChange) {
+			onPowerChange(isPoweredOn);
+		}
+	}, [isPoweredOn, onPowerChange]);
+
+	// Animate the emissive glow intensity during boot
+	useEffect(() => {
+		if (!bootTime) return;
+
+		const GLOW_FADE_DURATION = 1500; // 1.5 seconds to fade in the glow
+		const startTime = bootTime;
+
+		const animate = () => {
+			const elapsed = Date.now() - startTime;
+			const progress = Math.min(elapsed / GLOW_FADE_DURATION, 1);
+
+			// Ease-in quad for smooth fade
+			const easedProgress = progress * progress;
+			setGlowIntensity(easedProgress * 0.4);
+
+			if (progress < 1) {
+				requestAnimationFrame(animate);
+			}
+		};
+
+		const animationId = requestAnimationFrame(animate);
+		return () => cancelAnimationFrame(animationId);
+	}, [bootTime]);
+
+	// Apply terminal texture to existing screen material using emissive map
+	useEffect(() => {
+		const mesh = screenMeshRef.current;
+		if (!mesh || !mesh.material) {
+			return;
+		}
+
+		if (!originalScreenMaterial.current) {
+			originalScreenMaterial.current = Array.isArray(mesh.material)
+				? mesh.material.map(material => material.clone())
+				: mesh.material.clone();
+		}
+
+		if (isPoweredOn && terminalTextureReady && terminalTexture.current) {
+			const storedOriginal = originalScreenMaterial.current;
+			const originals = Array.isArray(storedOriginal) ? storedOriginal : [storedOriginal];
+			const emissiveTexture = terminalTexture.current;
+			emissiveTexture.needsUpdate = true;
+
+			if (screenMaterialRef.current.length) {
+				disposeScreenMaterials(mesh.material);
+			}
+
+			const updateableMaterials: Array<THREE.MeshStandardMaterial | THREE.MeshPhysicalMaterial> = [];
+			const clonedMaterials = originals.map(original => {
+				const mat = original.clone() as THREE.Material;
+				if (mat instanceof THREE.MeshStandardMaterial || mat instanceof THREE.MeshPhysicalMaterial) {
+					mat.emissiveMap = emissiveTexture;
+					mat.emissive = new THREE.Color('#9ffdcb');
+					mat.emissiveIntensity = 0;
+					mat.needsUpdate = true;
+					updateableMaterials.push(mat);
+				}
+				return mat;
+			});
+
+			if (Array.isArray(storedOriginal)) {
+				mesh.material = clonedMaterials;
+			} else {
+				mesh.material = clonedMaterials[0];
+			}
+			screenMaterialRef.current = updateableMaterials;
+		}
+
+		if (!isPoweredOn && originalScreenMaterial.current) {
+			const storedOriginal = originalScreenMaterial.current;
+			const restored = Array.isArray(storedOriginal)
+				? storedOriginal.map(material => material.clone())
+				: storedOriginal.clone();
+
+			if (screenMaterialRef.current.length) {
+				disposeScreenMaterials(mesh.material);
+			}
+
+			if (Array.isArray(storedOriginal)) {
+				mesh.material = restored as THREE.Material[];
+			} else {
+				mesh.material = restored as THREE.Material;
+			}
+			screenMaterialRef.current = [];
+		}
+	}, [isPoweredOn, terminalTextureReady, disposeScreenMaterials]);
+
+	// Enable shadows on all meshes and ensure materials are opaque and block light
 	useEffect(() => {
 		scene.traverse((child) => {
 			if ((child as THREE.Mesh).isMesh) {
 				child.castShadow = true;
 				child.receiveShadow = true;
+
+				// Ensure all materials are opaque and block light properly
+				const mesh = child as THREE.Mesh;
+				if (mesh.material) {
+					const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+					materials.forEach((mat) => {
+						if (mat instanceof THREE.MeshStandardMaterial || mat instanceof THREE.MeshPhysicalMaterial) {
+							// Ensure materials are opaque (except screen which we handle separately)
+							if (mesh.name !== SCREEN_MESH_NAME) {
+								mat.transparent = false;
+								mat.opacity = 1.0;
+								mat.needsUpdate = true;
+							}
+						}
+					});
+				}
 			}
 		});
 	}, [scene]);
+
 
 	// Compute computer base and align to desk top when available
 	useLayoutEffect(() => {
@@ -69,7 +199,7 @@ export function VintageComputer({ onScreenClick, deskTopY }: VintageComputerProp
 		setDeskAligned(true);
 	}, [deskTopY, scene]);
 
-	// Locate the dedicated screen mesh and align the overlay to it
+	// Locate the dedicated screen mesh and power button position
 	useLayoutEffect(() => {
 		if (!groupRef.current) return;
 		const base = groupRef.current;
@@ -81,6 +211,18 @@ export function VintageComputer({ onScreenClick, deskTopY }: VintageComputerProp
 		const handle = requestAnimationFrame(() => {
 			base.updateWorldMatrix(true, true);
 
+			// Calculate power button position (bottom left of keyboard)
+			const compBox = new THREE.Box3().setFromObject(base);
+			const compSize = new THREE.Vector3();
+			compBox.getSize(compSize);
+
+			// Position power button at bottom left of keyboard area
+			const buttonX = compBox.min.x + 0.222;
+			const buttonY = compBox.min.y + 0.169;
+			const buttonZ = compBox.max.z - 0.115;
+			const buttonLocalPos = base.worldToLocal(new THREE.Vector3(buttonX, buttonY, buttonZ));
+			setPowerButtonPos([buttonLocalPos.x, buttonLocalPos.y, buttonLocalPos.z]);
+
 			const toMesh = (obj: THREE.Object3D | null | undefined): THREE.Mesh | null =>
 				obj && (obj as THREE.Mesh).isMesh ? (obj as THREE.Mesh) : null;
 
@@ -88,7 +230,6 @@ export function VintageComputer({ onScreenClick, deskTopY }: VintageComputerProp
 
 			if (screenNode) {
 				screenMeshRef.current = screenNode;
-				updateScreenMeshVisibility();
 
 				screenNode.updateWorldMatrix(true, true);
 				base.updateWorldMatrix(true, true);
@@ -135,10 +276,7 @@ export function VintageComputer({ onScreenClick, deskTopY }: VintageComputerProp
 				return;
 			}
 
-			// Final fallback: approximate placement based on whole chassis
-			const compBox = new THREE.Box3().setFromObject(base);
-			const compSize = new THREE.Vector3();
-			compBox.getSize(compSize);
+			// Final fallback: approximate placement based on whole chassis (reuse compBox and compSize from above)
 			const compCenter = new THREE.Vector3();
 			compBox.getCenter(compCenter);
 
@@ -157,57 +295,125 @@ export function VintageComputer({ onScreenClick, deskTopY }: VintageComputerProp
 		});
 
 		return () => cancelAnimationFrame(handle);
-	}, [scene, computerY, updateScreenMeshVisibility]);
+	}, [scene, computerY]);
+
+	// Animate emissive intensity on the original screen material
+	useFrame(() => {
+		if (!screenMaterialRef.current.length) {
+			return;
+		}
+
+		const baseIntensity = isPoweredOn ? THREE.MathUtils.clamp(0.18 + glowIntensity * 1.4, 0, 0.8) : 0;
+		const hoverBoost = isHovered ? 0.12 : 0;
+		const targetIntensity = baseIntensity + hoverBoost;
+
+		screenMaterialRef.current.forEach(material => {
+			material.emissiveIntensity = THREE.MathUtils.lerp(material.emissiveIntensity, targetIntensity, 0.12);
+		});
+	});
 
 	return (
-		<group ref={groupRef} position={[0, computerY, 0]} scale={0.7} visible={screenReady && deskAligned}>
+		<group ref={groupRef} position={[0 , computerY, 0]} scale={0.7} visible={true}>
 			{/* Computer terminal model */}
 			<primitive object={scene} scale={1} castShadow receiveShadow />
 
-			{/* Invisible clickable area for the screen - aligned to model */}
+			{/* Power button - bottom left of keyboard */}
 			{screenReady && (
 				<>
-					<mesh
-						position={clickPos}
-						rotation={screenRot}
+					{/* Power button with rounded edges and chamfer like keyboard keys */}
+					<RoundedBox
+						args={[0.061, 0.03, 0.061]}
+						radius={0.008}
+						smoothness={1}
+						position={powerButtonPos}
+						rotation={[0.1, 0.005, 0.01]}
+						scale={[1, 0.85, 0.95]}
 						onClick={(e) => {
 							e.stopPropagation();
-							if (onScreenClick) {
-								onScreenClick();
-							}
+							setIsPoweredOn(true);
 						}}
 						onPointerOver={(e) => {
 							e.stopPropagation();
-							setIsHovered(true);
+							setIsPowerButtonHovered(true);
 							document.body.style.cursor = 'pointer';
 						}}
 						onPointerOut={(e) => {
 							e.stopPropagation();
-							setIsHovered(false);
+							setIsPowerButtonHovered(false);
 							document.body.style.cursor = 'auto';
 						}}
+						castShadow
+						receiveShadow
 					>
-						<boxGeometry args={[screenSize[0] * 1.03, screenSize[1] * 1.03, boxDepth]} />
-						<meshBasicMaterial transparent opacity={0} />
-					</mesh>
+						<meshStandardMaterial
+							color={isPowerButtonHovered ? '#ff6666' : '#ff3333'}
+							emissive={isPowerButtonHovered ? '#ff0000' : '#660000'}
+							emissiveIntensity={isPowerButtonHovered ? 0.5 : 0.2}
+							roughness={0.6}
+							metalness={0.1}
+						/>
+					</RoundedBox>
 
-					{/* Terminal display - aligned to model screen - always visible */}
-					<group position={screenPos} rotation={[0, 0.01, 0]}>
-						<pointLight
-							color="#9ffdcb"
-							position={[0, 0, 0.12]}
-							intensity={0.4}
-							distance={1.2}
-							decay={2}
-						/>
-						<TerminalScreen
-							isHighlighted={isHovered}
-							width={screenSize[0]}
-							height={screenSize[1]}
-							offset={0}
-							bootSignal={Date.now()}
-						/>
-					</group>
+					{/* Invisible clickable area for the screen - aligned to model - only active when powered on */}
+					{isPoweredOn && (
+						<mesh
+							position={clickPos}
+							rotation={screenRot}
+							onClick={(e) => {
+								e.stopPropagation();
+
+								// Get world position of the screen for camera zoom
+								if (onZoomToScreen && groupRef.current) {
+									const localPos = new THREE.Vector3(...screenPos);
+									const worldPos = groupRef.current.localToWorld(localPos.clone());
+									onZoomToScreen(worldPos);
+								}
+
+								// Keep old callback for backwards compatibility
+								if (onScreenClick) {
+									onScreenClick();
+								}
+							}}
+							onPointerOver={(e) => {
+								e.stopPropagation();
+								setIsHovered(true);
+								document.body.style.cursor = 'pointer';
+							}}
+							onPointerOut={(e) => {
+								e.stopPropagation();
+								setIsHovered(false);
+								document.body.style.cursor = 'auto';
+							}}
+						>
+							<boxGeometry args={[screenSize[0] * 1.03, screenSize[1] * 1.03, boxDepth]} />
+							<meshBasicMaterial transparent opacity={0} />
+						</mesh>
+					)}
+
+					{/* Render terminal texture - mapped to screen mesh surface */}
+					{isPoweredOn && (
+						<>
+							{/* Light emanating from screen - fades in with boot animation */}
+							<pointLight
+								color="#9ffdcb"
+								position={screenPos}
+								intensity={glowIntensity}
+								distance={1.2}
+								decay={2}
+							/>
+
+							{/* Terminal rendered to texture only - no visible mesh */}
+							<TerminalScreen
+								isHighlighted={isHovered}
+								width={screenSize[0]}
+								height={screenSize[1]}
+								offset={0}
+								bootSignal={bootTime}
+								onTextureReady={handleTerminalTexture}
+								renderToTexture={true}
+							/>
+						</>
+					)}
 				</>
 			)}
 		</group>

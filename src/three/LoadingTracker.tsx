@@ -13,12 +13,18 @@ export function LoadingTracker({ onProgress, onComplete }: LoadingTrackerProps) 
 	const { active, progress, loaded, total, item } = useProgress();
 
 	useEffect(() => {
-		onProgress(progress, loaded, total, item);
+		const timer = setTimeout(() => {
+			onProgress(progress, loaded, total, item);
+		}, 0);
+		return () => clearTimeout(timer);
 	}, [progress, loaded, total, item, onProgress]);
 
 	useEffect(() => {
 		if (!active && loaded > 0) {
-			onComplete();
+			const timer = setTimeout(() => {
+				onComplete();
+			}, 0);
+			return () => clearTimeout(timer);
 		}
 	}, [active, loaded, onComplete]);
 

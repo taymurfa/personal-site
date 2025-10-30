@@ -18,8 +18,10 @@ function App() {
 	const [loadingLoaded, setLoadingLoaded] = useState(0);
 	const [loadingTotal, setLoadingTotal] = useState(0);
 	const [loadingItem, setLoadingItem] = useState('');
+	const [isInteractingWithObject, setIsInteractingWithObject] = useState(false);
 	const startTimeRef = useRef(Date.now());
 	const assetsLoadedRef = useRef(false);
+	const scenePositionedRef = useRef(false);
 
 	const handleEnterTerminal = () => {
 		// Start fade out animation
@@ -43,16 +45,27 @@ function App() {
 		setLoadingItem(item);
 	}, []);
 
+	const checkIfFullyReady = useCallback(() => {
+		if (assetsLoadedRef.current && scenePositionedRef.current) {
+			const elapsed = Date.now() - startTimeRef.current;
+			const remaining = Math.max(0, MIN_LOADING_TIME - elapsed);
+
+			setTimeout(() => {
+				setLoadingActive(false);
+				setAssetsReady(true);
+			}, remaining);
+		}
+	}, []);
+
 	const handleAssetsReady = useCallback(() => {
 		assetsLoadedRef.current = true;
-		const elapsed = Date.now() - startTimeRef.current;
-		const remaining = Math.max(0, MIN_LOADING_TIME - elapsed);
+		checkIfFullyReady();
+	}, [checkIfFullyReady]);
 
-		setTimeout(() => {
-			setLoadingActive(false);
-			setAssetsReady(true);
-		}, remaining);
-	}, []);
+	const handleSceneReady = useCallback(() => {
+		scenePositionedRef.current = true;
+		checkIfFullyReady();
+	}, [checkIfFullyReady]);
 
 	const sceneClassName = `scene-container ${fadeOut3D ? 'fade-out' : ''} ${assetsReady ? 'loaded' : 'is-loading'}`;
 
@@ -69,27 +82,33 @@ function App() {
 			<div className={sceneClassName}>
 				<Canvas
 					camera={{
-						position: [0.1, 0.6, 0],
+						position: [0.1, 0.6, -0.1],
 						rotation: [0, 0, 0],
-						fov: 65,
+						fov: 70,
 					}}
 					shadows
 					gl={{
 						antialias: true,
-						toneMapping: 0, // NoToneMapping for darker atmosphere
+						toneMapping: 0,
 					}}
 				>
 					<LoadingTracker onProgress={handleLoadingProgress} onComplete={handleAssetsReady} />
 					<Suspense fallback={null}>
-						<RetroStudyScene onEnterTerminal={handleEnterTerminal} />
+						<RetroStudyScene
+							onEnterTerminal={handleEnterTerminal}
+							onObjectInteraction={setIsInteractingWithObject}
+							onSceneReady={handleSceneReady}
+							assetsReady={assetsReady}
+						/>
 					</Suspense>
 					<CameraRotationControls
 						minPolarAngle={Math.PI / 6}
-						maxPolarAngle={Math.PI * 0.85}
+						maxPolarAngle={Math.PI / 2 + (40 * Math.PI / 180)}
 						minAzimuthAngle={-Math.PI * (115 / 180)}
 						maxAzimuthAngle={Math.PI * (115 / 180)}
 						sensitivity={0.002}
 						damping={0.7}
+						enabled={!isInteractingWithObject}
 					/>
 				</Canvas>
 				</div>

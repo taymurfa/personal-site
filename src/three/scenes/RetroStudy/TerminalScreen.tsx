@@ -8,6 +8,8 @@ interface TerminalScreenProps {
 	height?: number;
 	offset?: number; // how far in front of the target surface along its normal
 	bootSignal?: number | null;
+	onTextureReady?: (texture: THREE.Texture) => void; // Callback to expose the terminal texture
+	renderToTexture?: boolean; // If true, only provides texture without rendering visible mesh
 }
 
 export function TerminalScreen({
@@ -16,6 +18,8 @@ export function TerminalScreen({
 	height = 0.6,
 	offset = 0.012,
 	bootSignal = null,
+	onTextureReady,
+	renderToTexture = false,
 }: TerminalScreenProps) {
 	const materialRef = useRef<THREE.ShaderMaterial>(null);
 	const powerOnProgress = useRef(0);
@@ -28,20 +32,22 @@ export function TerminalScreen({
 	const terminalText = useMemo(
 		() =>
 			[
-				'C:\\> DIR',
+				'C:\\> INIT PORTFOLIO.SYS',
 				'',
-				' Volume in drive C is SYSTEM',
-				' Volume Serial Number is 1A2B-3C4D',
+				'Loading database...',
 				'',
-				' Directory of C:\\DOS',
+				'[████████████████████████████] 100%',
 				'',
-				'COMMAND  COM     47,845  01-15-1988  12:00p',
-				'CONFIG   SYS        128  03-22-1989   3:14p',
-				'AUTOEXEC BAT         64  03-22-1989   3:14p',
-				'KERNEL   SYS     33,430  01-15-1988  12:00p',
+				'System initialized successfully.',
 				'',
-				'        4 File(s)     81,467 bytes',
-				'                  512,000 bytes free',
+				'┌─────────────────────────────────────┐',
+				'│                                     │',
+				'│      Welcome to Taymur Faruqui\'s   │',
+				'│              Portfolio!             │',
+				'│                                     │',
+				'└─────────────────────────────────────┘',
+				'',
+				'Click to enter!',
 				'',
 				'C:\\> _',
 			].join('\n'),
@@ -67,6 +73,13 @@ export function TerminalScreen({
 
 		return { canvas, ctx, texture };
 	}, []);
+
+	// Expose the texture via callback when ready
+	useEffect(() => {
+		if (onTextureReady && canvasBundle.texture) {
+			onTextureReady(canvasBundle.texture);
+		}
+	}, [canvasBundle.texture, onTextureReady]);
 
 	const drawText = useCallback(
 		(charsToShow: number) => {
@@ -127,6 +140,15 @@ export function TerminalScreen({
 				ctx.fillRect(cursorX, cursorY + cursorHeight + 4, 16, 4);
 			}
 
+			// Overlay subtle scanlines to keep CRT feel when mapped onto the original screen
+			ctx.save();
+			ctx.globalAlpha = 0.07;
+			ctx.fillStyle = '#001000';
+			for (let y = 0; y < canvas.height; y += 3) {
+				ctx.fillRect(0, y, canvas.width, 1);
+			}
+			ctx.restore();
+
 			texture.needsUpdate = true;
 		},
 		[canvasBundle, textLines, totalCharacters]
@@ -138,9 +160,9 @@ export function TerminalScreen({
 			uniforms: {
 				tDiffuse: { value: canvasBundle.texture },
 				time: { value: 0 },
-				flickerIntensity: { value: 0.03 },
-				scanlineIntensity: { value: 0.15 },
-				brightness: { value: 1.2 },
+				flickerIntensity: { value: 0.008 },
+				scanlineIntensity: { value: 0.6 },
+				brightness: { value: 0.7 },
 				powerOn: { value: 0 },
 			},
 			vertexShader: `
@@ -225,24 +247,28 @@ export function TerminalScreen({
 		drawText(visibleChars);
 	}, [visibleChars, drawText]);
 
-	// Animate the shader
+	// Animate the shader and typing animation
 	useFrame(({ clock }, delta) => {
-		if (!materialRef.current) return;
+		// Update shader uniforms if material exists
+		if (materialRef.current) {
+			const material = materialRef.current;
+			material.uniforms.time.value = clock.getElapsedTime();
 
-		const material = materialRef.current;
-		material.uniforms.time.value = clock.getElapsedTime();
+			// Boost brightness when highlighted/hovered
+			const targetBrightness = isHighlighted ? 1.5 : 1.2;
+			material.uniforms.brightness.value = THREE.MathUtils.lerp(
+				material.uniforms.brightness.value,
+				targetBrightness,
+				0.1
+			);
+		}
 
-		// Boost brightness when highlighted/hovered
-		const targetBrightness = isHighlighted ? 1.5 : 1.2;
-		material.uniforms.brightness.value = THREE.MathUtils.lerp(
-			material.uniforms.brightness.value,
-			targetBrightness,
-			0.1
-		);
-
+		// Handle typing animation (works even in texture-only mode)
 		if (!bootActiveRef.current) {
 			powerOnProgress.current = 0;
-			material.uniforms.powerOn.value = 0;
+			if (materialRef.current) {
+				materialRef.current.uniforms.powerOn.value = 0;
+			}
 			return;
 		}
 
@@ -250,12 +276,16 @@ export function TerminalScreen({
 		if (powerOnProgress.current < 1) {
 			const duration = 2.2;
 			powerOnProgress.current = Math.min(1, powerOnProgress.current + delta / duration);
-			material.uniforms.powerOn.value = powerOnProgress.current;
+			if (materialRef.current) {
+				materialRef.current.uniforms.powerOn.value = powerOnProgress.current;
+			}
 			if (powerOnProgress.current >= 1) {
 				typingClock.current = -0.75; // slight delay before typing begins
 			}
 		} else {
-			material.uniforms.powerOn.value = powerOnProgress.current;
+			if (materialRef.current) {
+				materialRef.current.uniforms.powerOn.value = powerOnProgress.current;
+			}
 			typingClock.current += delta;
 			const effectiveTime = Math.max(typingClock.current, 0);
 			const charsPerSecond = 52;
@@ -288,6 +318,11 @@ export function TerminalScreen({
 		resetBoot();
 		bootActiveRef.current = true;
 	}, [bootSignal, resetBoot]);
+
+	// If renderToTexture is true, don't render a visible mesh - just update texture
+	if (renderToTexture) {
+		return null;
+	}
 
 	return (
 		<mesh position={[0, 0, offset]}>

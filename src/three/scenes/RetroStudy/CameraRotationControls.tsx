@@ -9,6 +9,7 @@ interface CameraRotationControlsProps {
 	maxAzimuthAngle?: number;
 	sensitivity?: number;
 	damping?: number;
+	enabled?: boolean;
 }
 
 export function CameraRotationControls({
@@ -18,6 +19,7 @@ export function CameraRotationControls({
 	maxAzimuthAngle = Infinity,
 	sensitivity = 0.002,
 	damping = 0.9,
+	enabled = true,
 }: CameraRotationControlsProps) {
 	const { camera, gl } = useThree();
 	const isDragging = useRef(false);
@@ -29,6 +31,7 @@ export function CameraRotationControls({
 		const domElement = gl.domElement;
 
 		const onMouseDown = (event: MouseEvent) => {
+			if (!enabled) return;
 			isDragging.current = true;
 			previousMousePosition.current = {
 				x: event.clientX,
@@ -37,7 +40,7 @@ export function CameraRotationControls({
 		};
 
 		const onMouseMove = (event: MouseEvent) => {
-			if (!isDragging.current) return;
+			if (!isDragging.current || !enabled) return;
 
 			const deltaX = event.clientX - previousMousePosition.current.x;
 			const deltaY = event.clientY - previousMousePosition.current.y;
@@ -68,7 +71,7 @@ export function CameraRotationControls({
 			window.removeEventListener('mousemove', onMouseMove);
 			window.removeEventListener('mouseup', onMouseUp);
 		};
-	}, [camera, gl, sensitivity]);
+	}, [camera, gl, sensitivity, enabled]);
 
 	useFrame(() => {
 		if (!isDragging.current && Math.abs(velocity.current.x) < 0.0001 && Math.abs(velocity.current.y) < 0.0001) {

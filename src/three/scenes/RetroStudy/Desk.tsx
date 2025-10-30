@@ -13,11 +13,18 @@ export function Desk({ onReady, onBounds }: DeskProps) {
 
 	useEffect(() => {
 		if (!groupRef.current) return;
-		groupRef.current.updateWorldMatrix(true, true);
-		const box = new THREE.Box3().setFromObject(groupRef.current);
-		if (onReady) onReady(box.max.y);
-		if (onBounds) onBounds({ topY: box.max.y, bottomY: box.min.y });
-	}, [scene, onReady]);
+
+		const timer = setTimeout(() => {
+			if (!groupRef.current) return;
+			groupRef.current.updateWorldMatrix(true, true);
+			const box = new THREE.Box3().setFromObject(groupRef.current);
+
+			if (onReady) onReady(box.max.y);
+			if (onBounds) onBounds({ topY: box.max.y, bottomY: box.min.y });
+		}, 0);
+
+		return () => clearTimeout(timer);
+	}, [scene, onReady, onBounds]);
 
 	return (
 		<group ref={groupRef} position={[0, -1.2, 0]} scale={1.7}>

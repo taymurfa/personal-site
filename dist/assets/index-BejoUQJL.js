@@ -1,0 +1,68 @@
+import{r as t,a as he,j as e,b as V}from"./react-three-BMIN_aMC.js";import{aq as Ce,H as le,X as ue,ab as Pe,$ as Oe,M as Re,ao as N,c as D,Q as fe,ar as Ee,m as ze}from"./three-CldemLSC.js";function Ie({isHighlighted:f=!1,width:o=.8,height:h=.6,offset:l=.012,bootSignal:p=null}){const n=t.useRef(null),x=t.useRef(0),M=t.useRef(0),a=t.useRef(0),[r,v]=t.useState(0),w=t.useRef(!1),d=t.useMemo(()=>["C:\\> DIR",""," Volume in drive C is SYSTEM"," Volume Serial Number is 1A2B-3C4D",""," Directory of C:\\DOS","","COMMAND  COM     47,845  01-15-1988  12:00p","CONFIG   SYS        128  03-22-1989   3:14p","AUTOEXEC BAT         64  03-22-1989   3:14p","KERNEL   SYS     33,430  01-15-1988  12:00p","","        4 File(s)     81,467 bytes","                  512,000 bytes free","","C:\\> _"].join(`
+`),[]),j=t.useMemo(()=>d.length,[d]),y=t.useMemo(()=>d.split(`
+`),[d]),C=t.useMemo(()=>{const g=document.createElement("canvas");g.width=1024,g.height=768;const S=g.getContext("2d");S.textBaseline="top";const i=new Ce(g);return i.minFilter=le,i.magFilter=le,i.wrapS=ue,i.wrapT=ue,{canvas:g,ctx:S,texture:i}},[]),B=t.useCallback(g=>{const{canvas:S,ctx:i,texture:I}=C,k=35;i.fillStyle="#000000",i.fillRect(0,0,S.width,S.height),i.fillStyle="#00ff00",i.font='bold 31px "Courier New", monospace';const L=y.reduce((m,u)=>Math.max(m,i.measureText(u).width),0),z=y.length*k,H=Math.max(16,Math.floor((S.width-L)/2)-36),U=Math.max(24,Math.floor((S.height-z)/2));let E=g,F=0,s=0;if(E<=0&&(F=0,s=0),y.forEach((m,u)=>{if(E<=0)return;const c=Math.min(m.length,E),W=m.slice(0,c);i.fillText(W,H,U+u*k),E-=c,E>0?(E-=1,F=u+1,s=0):(F=u,s=c)}),g<j){const m=Math.min(F,y.length-1),u=y[m]??"",c=i.measureText(u.slice(0,s)).width,W=H+c,Z=U+m*k;i.fillRect(W,Z+24+4,16,4)}I.needsUpdate=!0},[C,y,j]),P=t.useMemo(()=>({uniforms:{tDiffuse:{value:C.texture},time:{value:0},flickerIntensity:{value:.03},scanlineIntensity:{value:.15},brightness:{value:1.2},powerOn:{value:0}},vertexShader:`
+				varying vec2 vUv;
+				void main() {
+					vUv = uv;
+					gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+				}
+			`,fragmentShader:`
+				uniform sampler2D tDiffuse;
+				uniform float time;
+				uniform float flickerIntensity;
+				uniform float scanlineIntensity;
+				uniform float brightness;
+				uniform float powerOn;
+				varying vec2 vUv;
+
+				// Random function for flicker
+				float random(vec2 st) {
+					return fract(sin(dot(st.xy, vec2(12.9898, 78.233))) * 43758.5453123);
+				}
+
+				void main() {
+					float boot = clamp(powerOn, 0.0, 1.0);
+					vec2 uv = vUv;
+					vec2 centered = uv - 0.5;
+
+					// Simple horizontal expansion animation
+					float horizontalPhase = smoothstep(0.0, 0.4, boot);
+
+					// Slight CRT curvature
+					float dist = length(centered);
+					vec2 warpedUv = centered * (1.0 + 0.08 * dist * dist) + 0.5;
+
+					vec4 sampled = texture2D(tDiffuse, clamp(warpedUv, 0.001, 0.999));
+					vec3 phosphor = sampled.rgb;
+
+					// Bright horizontal bar at the beginning
+					float horizFlash = exp(-pow(centered.y * 80.0, 2.0)) * (1.0 - horizontalPhase);
+					vec3 beamColor = vec3(0.45, 1.0, 0.52) * horizFlash * 1.5;
+					float beamGate = 1.0 - smoothstep(0.4, 0.7, boot);
+
+					// Start with beam, fade to phosphor content
+					float imageReveal = smoothstep(0.3, 0.8, boot);
+					vec3 color = mix(beamColor * 0.6, phosphor, imageReveal);
+					color += beamColor * beamGate;
+
+					// Scanlines & subtle flicker
+					float scanline = sin(warpedUv.y * 384.0 * 2.1) * scanlineIntensity;
+					color -= scanline;
+					float flicker = random(vec2(time * 0.1, 0.0)) * flickerIntensity;
+					color *= (1.0 - flicker);
+
+					// Subtle vignette falloff
+					float vignette = smoothstep(0.85, 0.2, dist);
+					color *= vignette;
+
+					// Global fade-in
+					float globalFade = smoothstep(0.0, 0.8, boot);
+					color *= globalFade;
+
+					// Brightness & green tint
+					color *= brightness;
+					color.g *= 1.1;
+
+					gl_FragColor = vec4(color, sampled.a);
+				}
+			`}),[C.texture]),O=t.useCallback(g=>{g!==a.current&&(a.current=g,v(g))},[]);t.useEffect(()=>{B(r)},[r,B]),he(({clock:g},S)=>{if(!n.current)return;const i=n.current;i.uniforms.time.value=g.getElapsedTime();const I=f?1.5:1.2;if(i.uniforms.brightness.value=Pe.lerp(i.uniforms.brightness.value,I,.1),!w.current){x.current=0,i.uniforms.powerOn.value=0;return}if(x.current<1)x.current=Math.min(1,x.current+S/2.2),i.uniforms.powerOn.value=x.current,x.current>=1&&(M.current=-.75);else{i.uniforms.powerOn.value=x.current,M.current+=S;const k=Math.max(M.current,0),z=Math.min(j,Math.floor(k*52));z>a.current&&O(z)}});const R=t.useCallback(()=>{x.current=0,M.current=0,a.current=0,v(0),n.current&&(n.current.uniforms.powerOn.value=0,n.current.uniforms.time.value=0)},[]);return t.useEffect(()=>{R(),w.current=!1},[R]),t.useEffect(()=>{p!=null&&(R(),w.current=!0)},[p,R]),e.jsxs("mesh",{position:[0,0,l],children:[e.jsx("planeGeometry",{args:[o,h]}),e.jsx("shaderMaterial",{ref:n,attach:"material",...P})]})}function ke({onScreenClick:f,deskTopY:o}){const[h,l]=t.useState(!1),[p,n]=t.useState(!1),[x,M]=t.useState(!1),{scene:a}=V("/assets/models/apple_ii_computer.glb"),r=t.useRef(null),[v,w]=t.useState(0),[d,j]=t.useState([0,0,.5]),[y,C]=t.useState([0,0,.5]),[B,P]=t.useState([0,0,0]),[O,R]=t.useState([.4,.8]),[g,S]=t.useState(.1),[i,I]=t.useState(!1),[k,L]=t.useState(!1),z=t.useRef(null),[H,U]=t.useState([0,0,0]),E="Cube027_Monitor_0",F=t.useCallback(()=>{const s=z.current;s&&(s.material&&(Array.isArray(s.material)?s.material:[s.material]).forEach(u=>{const c=u;c.transparent=!0,c.opacity=0,c.needsUpdate=!0}),s.visible=!1)},[]);return t.useEffect(()=>{a.traverse(s=>{if(s.isMesh){s.castShadow=!0,s.receiveShadow=!0;const m=s;m.material&&(Array.isArray(m.material)?m.material:[m.material]).forEach(c=>{(c instanceof Oe||c instanceof Re)&&m.name!==E&&(c.transparent=!1,c.opacity=1,c.needsUpdate=!0)})}})},[a]),t.useLayoutEffect(()=>{if(!r.current){L(!1);return}L(!1),r.current.updateWorldMatrix(!0,!0);const s=new N().setFromObject(r.current);if(o!=null){const m=s.min.y,u=o-m+.005;w(u)}L(!0)},[o,a]),t.useLayoutEffect(()=>{if(!r.current)return;const s=r.current;I(!1),z.current=null;const m=requestAnimationFrame(()=>{s.updateWorldMatrix(!0,!0);const u=new N().setFromObject(s),c=new D;u.getSize(c);const W=u.min.x+.29,Z=u.min.y+.32,J=u.max.z+.03,X=s.worldToLocal(new D(W,Z,J));U([X.x,X.y,X.z]);const Y=(T=>T&&T.isMesh?T:null)(s.getObjectByName(E));if(Y){z.current=Y,F(),Y.updateWorldMatrix(!0,!0),s.updateWorldMatrix(!0,!0);const T=Y.geometry;T.boundingBox||T.computeBoundingBox();const ve=T.boundingBox,q=new D;ve.getSize(q);const we=[q.x,q.y,q.z].sort((Me,je)=>je-Me),[ee,te,se]=we,oe=new D,re=new fe,ne=new fe;Y.getWorldPosition(oe),Y.getWorldQuaternion(re),s.getWorldQuaternion(ne);const A=s.worldToLocal(oe.clone()),Se=ne.clone().invert().multiply(re),K=new Ee().setFromQuaternion(Se,"XYZ"),ae=ee*-.019,ie=te*.11,ce=se*3.75;j([A.x+ae,A.y+ie,A.z+ce]),C([A.x+ae,A.y+ie,A.z+ce+.02]),P([K.x,K.y,K.z]),R([ee*.38,te*.37]),S(se*2),I(!0);return}const $=new D;u.getCenter($);const pe=u.min.y+c.y*.64,xe=u.max.z-c.z*.12,ge=$.x-c.x*.18,_=s.worldToLocal(new D(ge,pe,xe));j([_.x,_.y,_.z]),C([_.x,_.y,_.z+.01]),P([0,0,0]);const ye=c.x*.8,be=c.y*.4;R([ye,be]),S(.05),I(!0)});return()=>cancelAnimationFrame(m)},[a,v,F]),e.jsxs("group",{ref:r,position:[0,v,0],scale:.7,visible:!0,children:[e.jsx("primitive",{object:a,scale:1,castShadow:!0,receiveShadow:!0}),i&&e.jsxs(e.Fragment,{children:[e.jsxs("mesh",{position:H,scale:[1,.85,.95],onClick:s=>{s.stopPropagation(),M(!0)},onPointerOver:s=>{s.stopPropagation(),n(!0),document.body.style.cursor="pointer"},onPointerOut:s=>{s.stopPropagation(),n(!1),document.body.style.cursor="auto"},castShadow:!0,receiveShadow:!0,children:[e.jsx("boxGeometry",{args:[.05,.03,.05,2,2,2]}),e.jsx("meshStandardMaterial",{color:p?"#ff6666":"#ff3333",emissive:p?"#ff0000":"#660000",emissiveIntensity:p?.5:.2,roughness:.6,metalness:.1})]}),x&&e.jsxs("mesh",{position:y,rotation:B,onClick:s=>{s.stopPropagation(),f&&f()},onPointerOver:s=>{s.stopPropagation(),l(!0),document.body.style.cursor="pointer"},onPointerOut:s=>{s.stopPropagation(),l(!1),document.body.style.cursor="auto"},children:[e.jsx("boxGeometry",{args:[O[0]*1.03,O[1]*1.03,g]}),e.jsx("meshBasicMaterial",{transparent:!0,opacity:0})]}),x&&e.jsxs("group",{position:d,rotation:[0,.01,0],children:[e.jsx("pointLight",{color:"#9ffdcb",position:[0,0,.12],intensity:.4,distance:1.2,decay:2}),e.jsx(Ie,{isHighlighted:h,width:O[0],height:O[1],offset:0,bootSignal:Date.now()})]})]})]})}function Fe({onReady:f,onBounds:o}){const{scene:h}=V("/assets/models/metal_desk.glb"),l=t.useRef(null);return t.useEffect(()=>{if(!l.current)return;const p=setTimeout(()=>{if(!l.current)return;l.current.updateWorldMatrix(!0,!0);const n=new N().setFromObject(l.current);f&&f(n.max.y),o&&o({topY:n.max.y,bottomY:n.min.y})},0);return()=>clearTimeout(p)},[h,f,o]),e.jsx("group",{ref:l,position:[0,-1.2,0],scale:1.7,children:e.jsx("primitive",{object:h,castShadow:!0,receiveShadow:!0})})}function Te(){const{scene:f}=V("/assets/models/old_leather_office_chair.glb"),o=t.useRef(null),[h,l]=t.useState(0);return t.useEffect(()=>{if(!o.current)return;o.current.updateWorldMatrix(!0,!0);const p=new N().setFromObject(o.current),n=-1.9,x=.005,M=p.min.y,a=n+x-M;Math.abs(a)>1e-4&&l(r=>r+a)},[f]),e.jsx("group",{ref:o,position:[.15,h,-.5],rotation:[Math.PI*(5/180),0,0],scale:1.05,children:e.jsx("primitive",{object:f,castShadow:!0,receiveShadow:!0})})}const b={position:{x:0,y:-.08,z:1.11},angle:Math.PI/3,penumbra:.5,color:"#ffa850",baseIntensity:4,distance:3,decay:2},me={x:.291,y:-.054},de=-.468,G={x:0,y:.3,z:.15},Q={intensity:.8,distance:.35,decay:2},Be={slow:{frequency:8,amplitude:.05},medium:{frequency:13,amplitude:.03},fast:{frequency:20,amplitude:.02},intensityMultiplier:.5};function Le({deskTopY:f}){const o=t.useRef(null),h=t.useRef(null),l=t.useRef(null),p=t.useRef(null),{scene:n}=V("/assets/models/desk_lamp.glb"),[x,M]=t.useState(0);return t.useEffect(()=>{o.current&&p.current&&(o.current.target=p.current,o.current.shadow.camera&&(o.current.shadow.camera.near=.1,o.current.shadow.camera.far=5,o.current.shadow.bias=-1e-4,o.current.shadow.camera.updateProjectionMatrix()))},[]),t.useEffect(()=>{n.traverse(a=>{if(a.isMesh){const r=a;if(r.castShadow=!0,r.receiveShadow=!0,r.name.toLowerCase().includes("sphere")&&r.name.includes("Material011")){const w=r.material;if(w&&w.isMeshStandardMaterial){const d=w.clone();d.emissive=new ze(b.color),d.emissiveIntensity=30,d.transparent=!0,d.opacity=.6,r.material=d}}}})},[n]),t.useEffect(()=>{if(!l.current||f==null)return;l.current.updateWorldMatrix(!0,!0);const r=new N().setFromObject(l.current).min.y,v=f-r+.005;M(v)},[f,n]),he(({clock:a})=>{if(!o.current||!h.current)return;const r=a.getElapsedTime(),{slow:v,medium:w,fast:d,intensityMultiplier:j}=Be,y=Math.sin(r*v.frequency)*v.amplitude+Math.sin(r*w.frequency)*w.amplitude+Math.sin(r*d.frequency)*d.amplitude;o.current.intensity=b.baseIntensity+y*j,h.current.intensity=Q.intensity+y*j*.4}),e.jsx("group",{position:[1,-.2,.6],children:e.jsxs("group",{ref:l,rotation:[0,-Math.PI/3,0],scale:.7,position:[0,0,0],children:[e.jsx("group",{position:[G.x,G.y,G.z],children:e.jsx("group",{rotation:[0,de,0],children:e.jsx("group",{position:[-0,-.3,-.15],children:e.jsx("primitive",{object:n,castShadow:!0,receiveShadow:!0})})})}),e.jsx("group",{position:[G.x,G.y,G.z],rotation:[0,de,0],children:e.jsxs("group",{rotation:[me.x,me.y,0],children:[e.jsx("pointLight",{ref:h,position:[b.position.x,b.position.y,b.position.z],color:b.color,intensity:Q.intensity,distance:Q.distance,decay:Q.decay}),e.jsx("spotLight",{ref:o,position:[b.position.x,b.position.y,b.position.z],angle:b.angle,penumbra:b.penumbra,color:b.color,intensity:b.baseIntensity,distance:b.distance,decay:b.decay,castShadow:!0,"shadow-mapSize-width":2048,"shadow-mapSize-height":2048,"shadow-bias":-1e-4}),e.jsx("object3D",{ref:p,position:[0,-1,0]})]})})]})})}function De({onEnterTerminal:f,onObjectInteraction:o,onSceneReady:h}){const[l,p]=t.useState(null),n=t.useRef(null),[x,M]=t.useState(0),[a,r]=t.useState(null),[v,w]=t.useState(!1),d=t.useCallback(y=>{const P=-1.895-y.bottomY;r(P),p(y.topY+P),w(!0),h&&h()},[h]);t.useEffect(()=>{if(n.current&&a!==null&&v){n.current.updateWorldMatrix(!0,!0);const P=new N().setFromObject(n.current).min.z,O=-2.5+.002-P;Math.abs(O)>1e-4&&M(R=>R+O)}},[a,v]);const j=()=>{f&&f()};return e.jsxs(e.Fragment,{children:[e.jsxs("group",{ref:n,position:[0,a??0,x],children:[e.jsx(Fe,{onBounds:d}),e.jsx("group",{position:[.1,0,-.4],children:e.jsx(ke,{onScreenClick:j,deskTopY:l??void 0})}),e.jsx(Le,{deskTopY:l??void 0})]}),e.jsx(Te,{}),e.jsxs("mesh",{rotation:[-Math.PI/2,0,0],position:[0,-1.9,0],receiveShadow:!0,children:[e.jsx("planeGeometry",{args:[20,20]}),e.jsx("meshStandardMaterial",{color:"#1a1410",roughness:.9,metalness:0})]}),e.jsxs("mesh",{position:[0,.5,-2.5],receiveShadow:!0,children:[e.jsx("planeGeometry",{args:[20,10]}),e.jsx("meshStandardMaterial",{color:"#2a2218",roughness:.95,metalness:0})]}),e.jsxs("mesh",{position:[-5,.5,0],rotation:[0,Math.PI/2,0],receiveShadow:!0,children:[e.jsx("planeGeometry",{args:[20,10]}),e.jsx("meshStandardMaterial",{color:"#2a2218",roughness:.95,metalness:0})]}),e.jsxs("mesh",{position:[5,.5,0],rotation:[0,-Math.PI/2,0],receiveShadow:!0,children:[e.jsx("planeGeometry",{args:[20,10]}),e.jsx("meshStandardMaterial",{color:"#2a2218",roughness:.95,metalness:0})]}),e.jsxs("mesh",{rotation:[Math.PI/2,0,0],position:[0,3.5,0],receiveShadow:!0,children:[e.jsx("planeGeometry",{args:[20,20]}),e.jsx("meshStandardMaterial",{color:"#1a1a20",roughness:.95,metalness:0})]}),e.jsx("fog",{attach:"fog",args:["#0a0808",3,12]})]})}export{De as RetroStudyScene};
