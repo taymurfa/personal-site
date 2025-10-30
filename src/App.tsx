@@ -1,10 +1,11 @@
-import { Suspense, useCallback, useState } from 'react';
+import { Suspense, useCallback, useState, lazy } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { RetroStudyScene } from './three/scenes/RetroStudy';
-import { TerminalLandingPage } from './components/TerminalLandingPage';
-import { CameraRotationControls } from './three/scenes/RetroStudy/CameraRotationControls';
 import { CLILoadingOverlay } from './components/CLILoadingOverlay';
 import { LoadingTracker } from './three/LoadingTracker';
+
+const RetroStudyScene = lazy(() => import('./three/scenes/RetroStudy').then(m => ({ default: m.RetroStudyScene })));
+const TerminalLandingPage = lazy(() => import('./components/TerminalLandingPage').then(m => ({ default: m.TerminalLandingPage })));
+const CameraRotationControls = lazy(() => import('./three/scenes/RetroStudy/CameraRotationControls').then(m => ({ default: m.CameraRotationControls })));
 
 function App() {
 	const [showLandingPage, setShowLandingPage] = useState(false);
