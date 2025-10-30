@@ -1,4 +1,4 @@
-import { Suspense, useCallback, useState, lazy } from 'react';
+import { Suspense, useCallback, useState, lazy, useEffect, useRef } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { CLILoadingOverlay } from './components/CLILoadingOverlay';
 import { LoadingTracker } from './three/LoadingTracker';
@@ -6,6 +6,8 @@ import { LoadingTracker } from './three/LoadingTracker';
 const RetroStudyScene = lazy(() => import('./three/scenes/RetroStudy').then(m => ({ default: m.RetroStudyScene })));
 const TerminalLandingPage = lazy(() => import('./components/TerminalLandingPage').then(m => ({ default: m.TerminalLandingPage })));
 const CameraRotationControls = lazy(() => import('./three/scenes/RetroStudy/CameraRotationControls').then(m => ({ default: m.CameraRotationControls })));
+
+const MIN_LOADING_TIME = 1500;
 
 function App() {
 	const [showLandingPage, setShowLandingPage] = useState(false);
@@ -16,6 +18,8 @@ function App() {
 	const [loadingLoaded, setLoadingLoaded] = useState(0);
 	const [loadingTotal, setLoadingTotal] = useState(0);
 	const [loadingItem, setLoadingItem] = useState('');
+	const startTimeRef = useRef(Date.now());
+	const assetsLoadedRef = useRef(false);
 
 	const handleEnterTerminal = () => {
 		// Start fade out animation
@@ -40,8 +44,14 @@ function App() {
 	}, []);
 
 	const handleAssetsReady = useCallback(() => {
-		setLoadingActive(false);
-		setAssetsReady(true);
+		assetsLoadedRef.current = true;
+		const elapsed = Date.now() - startTimeRef.current;
+		const remaining = Math.max(0, MIN_LOADING_TIME - elapsed);
+
+		setTimeout(() => {
+			setLoadingActive(false);
+			setAssetsReady(true);
+		}, remaining);
 	}, []);
 
 	const sceneClassName = `scene-container ${fadeOut3D ? 'fade-out' : ''} ${assetsReady ? 'loaded' : 'is-loading'}`;

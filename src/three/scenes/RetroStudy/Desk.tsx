@@ -8,7 +8,7 @@ interface DeskProps {
 }
 
 export function Desk({ onReady, onBounds }: DeskProps) {
-	const { scene } = useGLTF('/src/assets/models/metal_desk.glb');
+	const { scene } = useGLTF('/assets/models/metal_desk.glb');
 	const groupRef = useRef<THREE.Group>(null);
 
 	useEffect(() => {

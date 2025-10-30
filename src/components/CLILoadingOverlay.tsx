@@ -19,7 +19,7 @@ export function CLILoadingOverlay({
 	total = 0,
 	item = '',
 	onComplete,
-	minVisibleMs = 600
+	minVisibleMs = 1200
 }: CLILoadingOverlayProps) {
 	const [completeAt, setCompleteAt] = useState<number | null>(null);
 	const [isVisible, setIsVisible] = useState(true);
@@ -50,7 +50,7 @@ export function CLILoadingOverlay({
 			}, 200);
 			const visibilityTimer = setTimeout(() => {
 				setIsVisible(false);
-			}, Math.max(minVisibleMs, 800));
+			}, Math.max(minVisibleMs, 1200));
 
 			return () => {
 				clearTimeout(completeTimer);

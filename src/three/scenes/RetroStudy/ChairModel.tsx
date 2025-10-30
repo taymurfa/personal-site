@@ -3,7 +3,7 @@ import { useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 
 export function ChairModel() {
-    const { scene } = useGLTF('/src/assets/models/old_leather_office_chair.glb');
+    const { scene } = useGLTF('/assets/models/old_leather_office_chair.glb');
     const groupRef = useRef<THREE.Group>(null);
     const [yOffset, setYOffset] = useState(0);
 

@@ -10,7 +10,7 @@ interface VintageComputerProps {
 
 export function VintageComputer({ onScreenClick, deskTopY }: VintageComputerProps) {
 	const [isHovered, setIsHovered] = useState(false);
-	const { scene } = useGLTF('/src/assets/models/apple_ii_computer.glb');
+	const { scene } = useGLTF('/assets/models/apple_ii_computer.glb');
 
 	// Refs and state for alignment
 	const groupRef = useRef<THREE.Group>(null);

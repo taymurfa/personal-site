@@ -41,7 +41,7 @@ export function DeskLamp({ deskTopY }: DeskLampProps) {
 	const lightRef = useRef<THREE.SpotLight>(null);
 	const bulbGlowRef = useRef<THREE.PointLight>(null);
 	const groupRef = useRef<THREE.Group>(null);
-	const { scene } = useGLTF('/src/assets/models/desk_lamp.glb');
+	const { scene } = useGLTF('/assets/models/desk_lamp.glb');
 	const [lampY, setLampY] = useState(0);
 
 	// Enable shadows and make bulb emissive
