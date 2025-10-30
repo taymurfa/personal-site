@@ -57,10 +57,7 @@ export function RetroStudyScene({ onEnterTerminal }: RetroStudySceneProps) {
                 <DeskLamp deskTopY={deskTopY ?? undefined} />
             </group>
 
-            {/* Chair - replaced with uploaded asset */}
             <ChairModel />
-
-            {/* Bookshelves removed */}
 
 			{/* Floor */}
 			<mesh
@@ -135,5 +132,3 @@ export function RetroStudyScene({ onEnterTerminal }: RetroStudySceneProps) {
 		</>
 	);
 }
-
-

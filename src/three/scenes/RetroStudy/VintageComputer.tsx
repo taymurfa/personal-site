@@ -5,11 +5,10 @@ import { TerminalScreen } from './TerminalScreen';
 
 interface VintageComputerProps {
 	onScreenClick?: () => void;
-	deskTopY?: number; // world-space Y of desk surface
-	debug?: boolean; // show debug helpers for screen alignment
+	deskTopY?: number;
 }
 
-export function VintageComputer({ onScreenClick, deskTopY, debug = false }: VintageComputerProps) {
+export function VintageComputer({ onScreenClick, deskTopY }: VintageComputerProps) {
 	const [isHovered, setIsHovered] = useState(false);
 	const { scene } = useGLTF('/src/assets/models/apple_ii_computer.glb');
 
@@ -86,17 +85,6 @@ export function VintageComputer({ onScreenClick, deskTopY, debug = false }: Vint
 				obj && (obj as THREE.Mesh).isMesh ? (obj as THREE.Mesh) : null;
 
 			const screenNode = toMesh(base.getObjectByName(SCREEN_MESH_NAME));
-			if (debug) {
-				const allMeshes: string[] = [];
-				base.traverse((child) => {
-					if ((child as THREE.Mesh).isMesh) {
-						allMeshes.push(child.name);
-					}
-				});
-				console.log('All available meshes:', allMeshes);
-				console.log('Looking for mesh:', SCREEN_MESH_NAME);
-				console.log('Found screen node:', screenNode);
-			}
 
 			if (screenNode) {
 				screenMeshRef.current = screenNode;
@@ -142,12 +130,6 @@ export function VintageComputer({ onScreenClick, deskTopY, debug = false }: Vint
 
 				// Set terminal size relative to mesh - use 40% of mesh dimensions
 				setScreenSize([width * 0.38, height * 0.37]);
-				if (debug) {
-					console.log('Screen size set to:', [width * 0.4, height * 0.4]);
-					console.log('Screen position:', [localPos.x + xOffset, localPos.y + yOffset, localPos.z + zOffset]);
-					console.log('Screen rotation:', [euler.x, euler.y, euler.z]);
-					console.log('Mesh dimensions (w,h,d):', [width, height, thickness]);
-				}
 				setBoxDepth(thickness * 2);
 				setScreenReady(true);
 				return;
@@ -175,7 +157,7 @@ export function VintageComputer({ onScreenClick, deskTopY, debug = false }: Vint
 		});
 
 		return () => cancelAnimationFrame(handle);
-	}, [scene, computerY, debug, updateScreenMeshVisibility]);
+	}, [scene, computerY, updateScreenMeshVisibility]);
 
 	return (
 		<group ref={groupRef} position={[0, computerY, 0]} scale={0.7} visible={screenReady && deskAligned}>

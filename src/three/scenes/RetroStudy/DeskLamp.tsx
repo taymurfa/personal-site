@@ -9,12 +9,12 @@ interface DeskLampProps {
 
 // Configuration constants
 const LAMP_POSITION = { x: 1.15, yOffset: 0.12, z: 0.4};
-const LAMP_ROTATION_Y = -Math.PI * 0.45; // -81 degrees
+const LAMP_ROTATION_Y = -Math.PI * 0.45;
 const LAMP_SCALE = 0.8;
 
 const LIGHT_CONFIG = {
 	position: { x: 0, y: 0.32, z: 0 },
-	rotation: -Math.PI * 0.3, // 60 degrees downward tilt
+	rotation: -Math.PI * 0.3,
 	angle: Math.PI / 3,
 	penumbra: 0.5,
 	color: '#ffa850',
@@ -73,7 +73,7 @@ export function DeskLamp({ deskTopY }: DeskLampProps) {
 		groupRef.current.updateWorldMatrix(true, true);
 		const box = new THREE.Box3().setFromObject(groupRef.current);
 		const minY = box.min.y;
-		const offset = deskTopY - minY + 0.005; // Small epsilon to prevent z-fighting
+		const offset = deskTopY - minY + 0.005;
 		setLampY(offset);
 	}, [deskTopY, scene]);
 
@@ -84,7 +84,6 @@ export function DeskLamp({ deskTopY }: DeskLampProps) {
 		const time = clock.getElapsedTime();
 		const { slow, medium, fast, intensityMultiplier } = FLICKER_CONFIG;
 
-		// Combine multiple sine waves for organic flicker effect
 		const flicker =
 			Math.sin(time * slow.frequency) * slow.amplitude +
 			Math.sin(time * medium.frequency) * medium.amplitude +
@@ -104,7 +103,6 @@ export function DeskLamp({ deskTopY }: DeskLampProps) {
 			>
 				<primitive object={scene} castShadow receiveShadow />
 
-				{/* Small point light at bulb for additional local illumination */}
 				<pointLight
 					ref={bulbGlowRef}
 					position={[LIGHT_CONFIG.position.x, LIGHT_CONFIG.position.y, LIGHT_CONFIG.position.z]}
