@@ -11,9 +11,10 @@ interface RetroStudySceneProps {
 	onObjectInteraction?: (isInteracting: boolean) => void;
 	onSceneReady?: () => void;
 	assetsReady?: boolean;
+	resetCameraSignal?: number;
 }
 
-export function RetroStudyScene({ onEnterTerminal, onObjectInteraction, onSceneReady, assetsReady = false }: RetroStudySceneProps) {
+export function RetroStudyScene({ onEnterTerminal, onObjectInteraction, onSceneReady, assetsReady = false, resetCameraSignal = 0 }: RetroStudySceneProps) {
     const [deskTopY, setDeskTopY] = useState<number | null>(null);
     const furnitureRef = useRef<THREE.Group>(null);
     const [furnitureZ, setFurnitureZ] = useState(0);
@@ -24,11 +25,48 @@ export function RetroStudyScene({ onEnterTerminal, onObjectInteraction, onSceneR
     // Camera zoom animation state
     const { camera } = useThree();
     const [isZooming, setIsZooming] = useState(false);
+    const [isResetting, setIsResetting] = useState(false);
     const zoomProgress = useRef(0);
+    const resetProgress = useRef(0);
     const startCameraPos = useRef(new THREE.Vector3());
     const startCameraRot = useRef(new THREE.Quaternion());
     const targetCameraPos = useRef(new THREE.Vector3());
     const targetCameraRot = useRef(new THREE.Quaternion());
+    const startFOV = useRef(75);
+    const targetFOV = useRef(50);
+    const originalCameraPos = useRef(new THREE.Vector3(0.1, 0.6, -0.1));
+    const originalCameraRot = useRef(new THREE.Quaternion());
+    const originalFOV = useRef(70);
+
+    // Store original camera orientation on mount
+    useEffect(() => {
+        originalCameraPos.current.copy(camera.position);
+        originalCameraRot.current.copy(camera.quaternion);
+        if (camera instanceof THREE.PerspectiveCamera) {
+            originalFOV.current = camera.fov;
+        }
+    }, [camera]);
+
+    // Handle reset camera signal
+    useEffect(() => {
+        if (resetCameraSignal > 0) {
+            // Store current position and rotation as starting point
+            startCameraPos.current.copy(camera.position);
+            startCameraRot.current.copy(camera.quaternion);
+            if (camera instanceof THREE.PerspectiveCamera) {
+                startFOV.current = camera.fov;
+            }
+
+            // Set targets to original values
+            targetCameraPos.current.copy(originalCameraPos.current);
+            targetCameraRot.current.copy(originalCameraRot.current);
+            targetFOV.current = originalFOV.current;
+
+            // Start reset animation
+            resetProgress.current = 0;
+            setIsResetting(true);
+        }
+    }, [resetCameraSignal, camera]);
 
     const handleDeskBounds = useCallback((bounds: { topY: number; bottomY: number }) => {
         const floorY = -1.9;
@@ -45,6 +83,12 @@ export function RetroStudyScene({ onEnterTerminal, onObjectInteraction, onSceneR
         // Store starting position and rotation
         startCameraPos.current.copy(camera.position);
         startCameraRot.current.copy(camera.quaternion);
+
+        // Store starting FOV and set target FOV
+        if (camera instanceof THREE.PerspectiveCamera) {
+            startFOV.current = camera.fov;
+            targetFOV.current = 45; // Narrower FOV for better readability
+        }
 
         // Calculate target position - position camera in front of the screen
         const cameraDistance = 0.35; // Distance from screen
@@ -74,46 +118,116 @@ export function RetroStudyScene({ onEnterTerminal, onObjectInteraction, onSceneR
         }
     }, [camera, onObjectInteraction]);
 
-    // Animate camera zoom
+    // Animate camera zoom and reset
     useFrame((_, delta) => {
-        if (!isZooming) return;
+        // Handle reset animation
+        if (isResetting) {
+            resetProgress.current += delta * 1.5;
 
-        // Increment progress (takes ~1 second to complete)
-        zoomProgress.current += delta * 1.5;
+            if (resetProgress.current >= 1) {
+                // Animation complete
+                resetProgress.current = 1;
+                camera.position.copy(targetCameraPos.current);
+                camera.quaternion.copy(targetCameraRot.current);
 
-        if (zoomProgress.current >= 1) {
-            // Animation complete
-            zoomProgress.current = 1;
-            camera.position.copy(targetCameraPos.current);
-            camera.quaternion.copy(targetCameraRot.current);
-            setIsZooming(false);
+                // Set final FOV
+                if (camera instanceof THREE.PerspectiveCamera) {
+                    camera.fov = targetFOV.current;
+                    camera.updateProjectionMatrix();
+                }
 
-            // Re-enable camera controls after animation
-            if (onObjectInteraction) {
-                onObjectInteraction(false);
+                setIsResetting(false);
+                return;
+            }
+
+            // Ease-in-out cubic for smooth animation
+            const t = resetProgress.current;
+            const eased = t < 0.5
+                ? 4 * t * t * t
+                : 1 - Math.pow(-2 * t + 2, 3) / 2;
+
+            // Interpolate position
+            camera.position.lerpVectors(
+                startCameraPos.current,
+                targetCameraPos.current,
+                eased
+            );
+
+            // Interpolate rotation
+            camera.quaternion.slerpQuaternions(
+                startCameraRot.current,
+                targetCameraRot.current,
+                eased
+            );
+
+            // Interpolate FOV
+            if (camera instanceof THREE.PerspectiveCamera) {
+                camera.fov = THREE.MathUtils.lerp(
+                    startFOV.current,
+                    targetFOV.current,
+                    eased
+                );
+                camera.updateProjectionMatrix();
             }
             return;
         }
 
-        // Ease-in-out cubic for smooth animation
-        const t = zoomProgress.current;
-        const eased = t < 0.5
-            ? 4 * t * t * t
-            : 1 - Math.pow(-2 * t + 2, 3) / 2;
+        // Handle zoom animation
+        if (isZooming) {
+            // Increment progress (takes ~2 seconds to complete for smoother animation)
+            zoomProgress.current += delta * 0.5;
 
-        // Interpolate position
-        camera.position.lerpVectors(
-            startCameraPos.current,
-            targetCameraPos.current,
-            eased
-        );
+            if (zoomProgress.current >= 1) {
+                // Animation complete
+                zoomProgress.current = 1;
+                camera.position.copy(targetCameraPos.current);
+                camera.quaternion.copy(targetCameraRot.current);
 
-        // Interpolate rotation
-        camera.quaternion.slerpQuaternions(
-            startCameraRot.current,
-            targetCameraRot.current,
-            eased
-        );
+                // Set final FOV
+                if (camera instanceof THREE.PerspectiveCamera) {
+                    camera.fov = targetFOV.current;
+                    camera.updateProjectionMatrix();
+                }
+
+                setIsZooming(false);
+
+                // Re-enable camera controls after animation
+                if (onObjectInteraction) {
+                    onObjectInteraction(false);
+                }
+                return;
+            }
+
+            // Ease-in-out quartic for smoother animation
+            const t = zoomProgress.current;
+            const eased = t < 0.5
+                ? 8 * t * t * t * t
+                : 1 - Math.pow(-2 * t + 2, 4) / 2;
+
+            // Interpolate position
+            camera.position.lerpVectors(
+                startCameraPos.current,
+                targetCameraPos.current,
+                eased
+            );
+
+            // Interpolate rotation
+            camera.quaternion.slerpQuaternions(
+                startCameraRot.current,
+                targetCameraRot.current,
+                eased
+            );
+
+            // Interpolate FOV
+            if (camera instanceof THREE.PerspectiveCamera) {
+                camera.fov = THREE.MathUtils.lerp(
+                    startFOV.current,
+                    targetFOV.current,
+                    eased
+                );
+                camera.updateProjectionMatrix();
+            }
+        }
     });
 
     // Align groups so their back-most edge sits flush with back wall (z = -2.5)

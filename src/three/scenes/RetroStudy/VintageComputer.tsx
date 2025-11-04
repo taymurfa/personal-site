@@ -39,6 +39,19 @@ export function VintageComputer({ onScreenClick, deskTopY, onZoomToScreen, onPow
 	const [glowIntensity, setGlowIntensity] = useState(0);
 	const [terminalTextureReady, setTerminalTextureReady] = useState(false);
 	const screenMaterialRef = useRef<Array<THREE.MeshStandardMaterial | THREE.MeshPhysicalMaterial>>([]);
+	const startupAudioRef = useRef<HTMLAudioElement | null>(null);
+
+	// Load startup audio
+	useEffect(() => {
+		const audio = new Audio('/assets/sfx/startup.mp3');
+		audio.preload = 'auto';
+		audio.volume = 0.7;
+		startupAudioRef.current = audio;
+		return () => {
+			audio.pause();
+			audio.src = '';
+		};
+	}, []);
 
 	const disposeScreenMaterials = useCallback((materials: THREE.Material | THREE.Material[]) => {
 		if (Array.isArray(materials)) {
@@ -189,8 +202,13 @@ export function VintageComputer({ onScreenClick, deskTopY, onZoomToScreen, onPow
 			return;
 		}
 		setDeskAligned(false);
+
+		// Calculate bounding box from just the computer model (scene), not the entire group
+		// This excludes UI elements like the power button
 		groupRef.current.updateWorldMatrix(true, true);
-		const box = new THREE.Box3().setFromObject(groupRef.current);
+		scene.updateWorldMatrix(true, true);
+		const box = new THREE.Box3().setFromObject(scene);
+
 		if (deskTopY != null) {
 			const minY = box.min.y; // world-space base of computer
 			const offset = deskTopY - minY + 0.005; // small epsilon to avoid z-fighting
@@ -313,6 +331,7 @@ export function VintageComputer({ onScreenClick, deskTopY, onZoomToScreen, onPow
 	});
 
 	return (
+		<>
 		<group ref={groupRef} position={[0 , computerY, 0]} scale={0.7} visible={true}>
 			{/* Computer terminal model */}
 			<primitive object={scene} scale={1} castShadow receiveShadow />
@@ -331,6 +350,13 @@ export function VintageComputer({ onScreenClick, deskTopY, onZoomToScreen, onPow
 						onClick={(e) => {
 							e.stopPropagation();
 							setIsPoweredOn(true);
+							// Play startup audio
+							if (startupAudioRef.current) {
+								startupAudioRef.current.currentTime = 0;
+								startupAudioRef.current.play().catch(err => {
+									console.warn('Audio playback failed:', err);
+								});
+							}
 						}}
 						onPointerOver={(e) => {
 							e.stopPropagation();
@@ -361,6 +387,25 @@ export function VintageComputer({ onScreenClick, deskTopY, onZoomToScreen, onPow
 							rotation={screenRot}
 							onClick={(e) => {
 								e.stopPropagation();
+
+								// Fade out startup audio
+								if (startupAudioRef.current && !startupAudioRef.current.paused) {
+									const audio = startupAudioRef.current;
+									const fadeDuration = 1000; // 1 second fade
+									const fadeSteps = 50;
+									const stepDuration = fadeDuration / fadeSteps;
+									const volumeDecrement = audio.volume / fadeSteps;
+
+									const fadeInterval = setInterval(() => {
+										if (audio.volume > volumeDecrement) {
+											audio.volume = Math.max(0, audio.volume - volumeDecrement);
+										} else {
+											audio.volume = 0;
+											audio.pause();
+											clearInterval(fadeInterval);
+										}
+									}, stepDuration);
+								}
 
 								// Get world position of the screen for camera zoom
 								if (onZoomToScreen && groupRef.current) {
@@ -417,5 +462,7 @@ export function VintageComputer({ onScreenClick, deskTopY, onZoomToScreen, onPow
 				</>
 			)}
 		</group>
+
+		</>
 	);
 }

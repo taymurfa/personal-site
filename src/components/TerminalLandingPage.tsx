@@ -61,8 +61,16 @@ export function TerminalLandingPage({ onBack }: TerminalLandingPageProps) {
 					'',
 					'> Executing: about',
 					'',
-					'  Full-stack developer with expertise in modern web technologies.',
-					'  Passionate about creating immersive 3D experiences and clean UIs.',
+					'  Hi, I\'m Taymur. I\'m an electrical engineering student at Purdue',
+					'  who enjoys working where hardware meets intelligence. I like designing',
+					'  embedded systems that interact with the physical world and exploring',
+					'  agentic workflows that give software the ability to plan and act on',
+					'  its own. I\'m driven by curiosity and the challenge of building',
+					'  systems that not only work but think.',
+					'',
+					'  I also have a strong interest in user-oriented design and enjoy',
+					'  exploring UI/UX to create experiences that are both functional and',
+					'  intuitive.',
 					'',
 				]);
 				break;
@@ -74,7 +82,7 @@ export function TerminalLandingPage({ onBack }: TerminalLandingPageProps) {
 					'> Opening GitHub profile...',
 				]);
 				setTimeout(() => {
-					window.open('https://github.com', '_blank');
+					window.open('https://github.com/taymurfa', '_blank');
 				}, 500);
 				break;
 			default:

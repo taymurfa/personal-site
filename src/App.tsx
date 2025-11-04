@@ -19,6 +19,7 @@ function App() {
 	const [loadingTotal, setLoadingTotal] = useState(0);
 	const [loadingItem, setLoadingItem] = useState('');
 	const [isInteractingWithObject, setIsInteractingWithObject] = useState(false);
+	const [resetCameraSignal, setResetCameraSignal] = useState(0);
 	const startTimeRef = useRef(Date.now());
 	const assetsLoadedRef = useRef(false);
 	const scenePositionedRef = useRef(false);
@@ -35,6 +36,8 @@ function App() {
 	const handleBackTo3D = () => {
 		setShowLandingPage(false);
 		setFadeOut3D(false);
+		// Signal camera to reset
+		setResetCameraSignal(prev => prev + 1);
 	};
 
 	const handleLoadingProgress = useCallback((progress: number, loaded: number, total: number, item: string) => {
@@ -99,6 +102,7 @@ function App() {
 							onObjectInteraction={setIsInteractingWithObject}
 							onSceneReady={handleSceneReady}
 							assetsReady={assetsReady}
+							resetCameraSignal={resetCameraSignal}
 						/>
 					</Suspense>
 					<CameraRotationControls

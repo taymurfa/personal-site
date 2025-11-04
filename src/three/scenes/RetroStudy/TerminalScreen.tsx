@@ -62,14 +62,17 @@ const totalCharacters = useMemo(() => terminalText.length, [terminalText]);
 		const canvas = document.createElement('canvas');
 		canvas.width = 2048;
 		canvas.height = 1536;
-		const ctx = canvas.getContext('2d')!;
+		const ctx = canvas.getContext('2d', { alpha: true, willReadFrequently: false })!;
 		ctx.textBaseline = 'top';
+		ctx.imageSmoothingEnabled = true;
+		ctx.imageSmoothingQuality = 'high';
 
 		const texture = new THREE.CanvasTexture(canvas);
 		texture.minFilter = THREE.LinearFilter;
 		texture.magFilter = THREE.LinearFilter;
 		texture.wrapS = THREE.ClampToEdgeWrapping;
 		texture.wrapT = THREE.ClampToEdgeWrapping;
+		texture.anisotropy = 16;
 
 		return { canvas, ctx, texture };
 	}, []);
@@ -104,7 +107,7 @@ const totalCharacters = useMemo(() => terminalText.length, [terminalText]);
 				0
 			);
 			const totalHeight = textLines.length * lineHeight;
-			const marginX = Math.max(16, Math.floor((canvas.width - maxLineWidth) / 2) - 36);
+			const marginX = Math.max(32, Math.floor((canvas.width - maxLineWidth) / 2) - 72);
 			const marginY = Math.floor((canvas.height - totalHeight) / 2);
 
 			let remaining = charsToShow;
