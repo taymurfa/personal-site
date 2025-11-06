@@ -48,6 +48,7 @@ export function DeskLamp({ deskTopY, computerPoweredOn = false, assetsReady = fa
 	const lightRef = useRef<THREE.SpotLight>(null);
 	const bulbGlowRef = useRef<THREE.PointLight>(null);
 	const fillLightRef = useRef<THREE.PointLight>(null);
+	const shadeInteriorLightRef = useRef<THREE.PointLight>(null);
 	const groupRef = useRef<THREE.Group>(null);
 	const targetRef = useRef<THREE.Object3D>(null);
 	const { scene } = useGLTF('/assets/models/desk_lamp.glb');
@@ -101,6 +102,20 @@ export function DeskLamp({ deskTopY, computerPoweredOn = false, assetsReady = fa
 						mesh.material = clonedMaterial;
 					}
 				}
+
+				// Make the lamp shade translucent and slightly emissive from inside
+				if (nameLower.includes('cone') || nameLower.includes('shade') || mesh.name.includes('Material010')) {
+					const material = mesh.material as THREE.MeshStandardMaterial;
+					if (material && material.isMeshStandardMaterial) {
+						const clonedMaterial = material.clone();
+						clonedMaterial.emissive = new THREE.Color(LIGHT_CONFIG.color);
+						clonedMaterial.emissiveIntensity = 0.3;
+						clonedMaterial.transparent = true;
+						clonedMaterial.opacity = 0.85;
+						clonedMaterial.side = THREE.DoubleSide; // Render both sides so interior is visible
+						mesh.material = clonedMaterial;
+					}
+				}
 			}
 		});
 	}, [scene]);
@@ -118,7 +133,7 @@ export function DeskLamp({ deskTopY, computerPoweredOn = false, assetsReady = fa
 
 	// Animate light flicker and dim fill light when computer is powered on
 	useFrame(({ clock }) => {
-		if (!lightRef.current || !bulbGlowRef.current || !fillLightRef.current) return;
+		if (!lightRef.current || !bulbGlowRef.current || !fillLightRef.current || !shadeInteriorLightRef.current) return;
 
 		const time = clock.getElapsedTime();
 
@@ -143,6 +158,7 @@ export function DeskLamp({ deskTopY, computerPoweredOn = false, assetsReady = fa
 				lightRef.current.intensity = LIGHT_CONFIG.baseIntensity * easedProgress;
 				bulbGlowRef.current.intensity = BULB_GLOW.intensity * easedProgress;
 				fillLightRef.current.intensity = 1.0 * easedProgress;
+				shadeInteriorLightRef.current.intensity = 2.5 * easedProgress;
 			} else {
 				// Flicker complete, set to normal intensities
 				flickerOnProgress.current = 1;
@@ -153,6 +169,7 @@ export function DeskLamp({ deskTopY, computerPoweredOn = false, assetsReady = fa
 			lightRef.current.intensity = 0;
 			bulbGlowRef.current.intensity = 0;
 			fillLightRef.current.intensity = 0;
+			shadeInteriorLightRef.current.intensity = 0;
 		} else {
 			// Normal operation with subtle flicker after flicker-on completes
 			const { slow, medium, fast, intensityMultiplier } = FLICKER_CONFIG;
@@ -164,6 +181,7 @@ export function DeskLamp({ deskTopY, computerPoweredOn = false, assetsReady = fa
 
 			lightRef.current.intensity = LIGHT_CONFIG.baseIntensity + flicker * intensityMultiplier;
 			bulbGlowRef.current.intensity = BULB_GLOW.intensity + flicker * intensityMultiplier * 0.4;
+			shadeInteriorLightRef.current.intensity = 2.5 + flicker * intensityMultiplier * 0.8;
 
 			// Dim the fill light when computer is powered on (reduces from 1.0 to 0.2)
 			const targetFillIntensity = computerPoweredOn ? 0.2 : 1.0;
@@ -202,6 +220,16 @@ export function DeskLamp({ deskTopY, computerPoweredOn = false, assetsReady = fa
 							intensity={BULB_GLOW.intensity}
 							distance={BULB_GLOW.distance}
 							decay={BULB_GLOW.decay}
+						/>
+
+						{/* Interior lamp shade illumination - lights up the inside of the shade */}
+						<pointLight
+							ref={shadeInteriorLightRef}
+							position={[LIGHT_CONFIG.position.x, LIGHT_CONFIG.position.y + 0.05, LIGHT_CONFIG.position.z - 0.05]}
+							color={LIGHT_CONFIG.color}
+							intensity={5}
+							distance={0.35}
+							decay={1.5}
 						/>
 
 						{/* Secondary fill light for better illumination - positioned above lamp */}

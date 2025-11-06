@@ -1,4 +1,4 @@
-import { Suspense, useCallback, useState, lazy, useEffect, useRef } from 'react';
+import { Suspense, useCallback, useState, lazy, useRef } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { CLILoadingOverlay } from './components/CLILoadingOverlay';
 import { LoadingTracker } from './three/LoadingTracker';
@@ -116,6 +116,12 @@ function App() {
 					/>
 				</Canvas>
 				</div>
+				{!showLandingPage && assetsReady && (
+					<div className="instruction-popup">
+						<div className="instruction-popup__text">Click and drag to look around</div>
+						<div className="instruction-popup__subtitle">Hit the red button to get started</div>
+					</div>
+				)}
 				{showLandingPage && <TerminalLandingPage onBack={handleBackTo3D} />}
 			</div>
 		);

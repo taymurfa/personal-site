@@ -6,7 +6,7 @@ interface TerminalLandingPageProps {
 }
 
 export function TerminalLandingPage({ onBack }: TerminalLandingPageProps) {
-	const [displayedLines, setDisplayedLines] = useState<string[]>([]);
+	const [displayedLines, setDisplayedLines] = useState<React.ReactNode[]>([]);
 	const [currentLineIndex, setCurrentLineIndex] = useState(0);
 
 	const terminalLines = [
@@ -29,10 +29,9 @@ export function TerminalLandingPage({ onBack }: TerminalLandingPageProps) {
 		{ text: '', delay: 100 },
 		{ text: '  [1] about      - View information about me', delay: 100 },
 		{ text: '  [2] projects   - Browse my projects', delay: 100 },
-		{ text: '  [3] skills     - View technical skills', delay: 100 },
-		{ text: '  [4] contact    - Get in touch', delay: 100 },
-		{ text: '  [5] github     - View GitHub profile', delay: 100 },
-		{ text: '  [6] back       - Return to 3D scene', delay: 100 },
+		{ text: '  [3] contact    - Get in touch', delay: 100 },
+		{ text: '  [4] github     - View GitHub profile', delay: 100 },
+		{ text: '  [5] back       - Return to 3D scene', delay: 100 },
 		{ text: '', delay: 200 },
 		{ text: '> Waiting for command..._', delay: 0 },
 	];
@@ -50,7 +49,7 @@ export function TerminalLandingPage({ onBack }: TerminalLandingPageProps) {
 
 	const handleCommand = (command: string) => {
 		switch (command) {
-			case '6':
+			case '5':
 			case 'back':
 				if (onBack) onBack();
 				break;
@@ -74,7 +73,27 @@ export function TerminalLandingPage({ onBack }: TerminalLandingPageProps) {
 					'',
 				]);
 				break;
-			case '5':
+			case '3':
+			case 'contact':
+				setDisplayedLines((prev) => [
+					...prev,
+					'',
+					'> Executing: contact',
+					'',
+					'  ╔════════════════════════════════════════════════╗',
+					'  ║            CONTACT INFORMATION                 ║',
+					'  ╚════════════════════════════════════════════════╝',
+					'',
+					'  Feel free to reach out to me anywhere!',
+					<span key="email">  Email:     <a href="mailto:tfaruqui@purdue.edu" target="_blank" rel="noopener noreferrer" style={{ color: '#ff9933', textDecoration: 'underline', cursor: 'pointer' }}>tfaruqui@purdue.edu</a></span>,
+					<span key="phone">  Phone:     <a href="tel:+12817034236" style={{ color: '#ff9933', textDecoration: 'underline', cursor: 'pointer' }}>+1 (281) 703-4236</a></span>,
+					'  Discord:   taymr',
+					<span key="instagram">  Instagram: <a href="https://instagram.com/taymurfa" target="_blank" rel="noopener noreferrer" style={{ color: '#ff9933', textDecoration: 'underline', cursor: 'pointer' }}>@taymurfa</a></span>,
+					<span key="linkedin">  LinkedIn:  <a href="https://linkedin.com/in/taymurfa" target="_blank" rel="noopener noreferrer" style={{ color: '#ff9933', textDecoration: 'underline', cursor: 'pointer' }}>linkedin.com/in/taymurfa</a></span>,
+					'',
+				]);
+				break;
+			case '4':
 			case 'github':
 				setDisplayedLines((prev) => [
 					...prev,
@@ -90,7 +109,7 @@ export function TerminalLandingPage({ onBack }: TerminalLandingPageProps) {
 					...prev,
 					'',
 					`> Error: Unknown command '${command}'`,
-					'> Type a number (1-6) or command name',
+					'> Type a number (1-5) or command name',
 					'',
 				]);
 		}
