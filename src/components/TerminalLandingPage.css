@@ -2,7 +2,7 @@
 	position: fixed;
 	inset: 0;
 	background: #000000;
-	color: #ff9933;
+	color: #9ffdcb;
 	font-family: 'Courier New', 'Courier', monospace;
 	display: flex;
 	flex-direction: column;
@@ -101,7 +101,7 @@
 }
 
 .terminal-prompt {
-	color: #ff9933;
+	color: #9ffdcb;
 	margin-right: 8px;
 	font-weight: bold;
 }
@@ -111,15 +111,15 @@
 	background: transparent;
 	border: none;
 	outline: none;
-	color: #ff9933;
+	color: #9ffdcb;
 	font-family: 'Courier New', 'Courier', monospace;
 	font-size: 14px;
 	letter-spacing: 0.5px;
-	caret-color: #ff9933;
+	caret-color: #9ffdcb;
 }
 
 .terminal-input::placeholder {
-	color: #664422;
+	color: #3a6655;
 	opacity: 0.6;
 }
 
@@ -169,6 +169,6 @@
 
 /* Text selection color */
 .terminal-landing ::selection {
-	background: #ff9933;
+	background: #9ffdcb;
 	color: #000;
 }

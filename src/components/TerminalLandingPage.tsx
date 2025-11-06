@@ -85,11 +85,11 @@ export function TerminalLandingPage({ onBack }: TerminalLandingPageProps) {
 					'  ╚════════════════════════════════════════════════╝',
 					'',
 					'  Feel free to reach out to me anywhere!',
-					<span key="email">  Email:     <a href="mailto:tfaruqui@purdue.edu" target="_blank" rel="noopener noreferrer" style={{ color: '#ff9933', textDecoration: 'underline', cursor: 'pointer' }}>tfaruqui@purdue.edu</a></span>,
-					<span key="phone">  Phone:     <a href="tel:+12817034236" style={{ color: '#ff9933', textDecoration: 'underline', cursor: 'pointer' }}>+1 (281) 703-4236</a></span>,
+					<span key="email">  Email:     <a href="mailto:tfaruqui@purdue.edu" target="_blank" rel="noopener noreferrer" style={{ color: '#9ffdcb', textDecoration: 'underline', cursor: 'pointer' }}>tfaruqui@purdue.edu</a></span>,
+					<span key="phone">  Phone:     <a href="tel:+12817034236" style={{ color: '#9ffdcb', textDecoration: 'underline', cursor: 'pointer' }}>+1 (281) 703-4236</a></span>,
 					'  Discord:   taymr',
-					<span key="instagram">  Instagram: <a href="https://instagram.com/taymurfa" target="_blank" rel="noopener noreferrer" style={{ color: '#ff9933', textDecoration: 'underline', cursor: 'pointer' }}>@taymurfa</a></span>,
-					<span key="linkedin">  LinkedIn:  <a href="https://linkedin.com/in/taymurfa" target="_blank" rel="noopener noreferrer" style={{ color: '#ff9933', textDecoration: 'underline', cursor: 'pointer' }}>linkedin.com/in/taymurfa</a></span>,
+					<span key="instagram">  Instagram: <a href="https://instagram.com/taymurfa" target="_blank" rel="noopener noreferrer" style={{ color: '#9ffdcb', textDecoration: 'underline', cursor: 'pointer' }}>@taymurfa</a></span>,
+					<span key="linkedin">  LinkedIn:  <a href="https://linkedin.com/in/taymurfa" target="_blank" rel="noopener noreferrer" style={{ color: '#9ffdcb', textDecoration: 'underline', cursor: 'pointer' }}>linkedin.com/in/taymurfa</a></span>,
 					'',
 				]);
 				break;
