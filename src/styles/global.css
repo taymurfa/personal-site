@@ -129,7 +129,7 @@ canvas {
 	font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica Neue, Arial;
 	font-size: 18px;
 	font-weight: 600;
-	color: #e8d5bf;
+	color: #9ffdcb;
 	text-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
 	margin-bottom: 6px;
 	letter-spacing: 0.3px;
@@ -139,7 +139,7 @@ canvas {
 	font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica Neue, Arial;
 	font-size: 14px;
 	font-weight: 400;
-	color: #a89177;
+	color: #6fcdab;
 	text-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
 	letter-spacing: 0.2px;
 }
