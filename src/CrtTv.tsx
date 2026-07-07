@@ -294,8 +294,25 @@ function ClockOverlay({ sw, sh }: { sw: number; sh: number }) {
 			ctx.shadowColor = 'rgba(255,255,255,0.5)';
 			ctx.shadowBlur = 12;
 			try { (ctx as any).letterSpacing = '9px'; } catch { /* older browsers */ }
-			ctx.fillText(formatLocalTime(), 6, 62);
+			const time = formatLocalTime();
+			ctx.fillText(time, 6, 62);
 			ctx.fillText(formatLocalDate(), 6, 132);
+
+			// stream state: ▶ when the live stream is rolling, ❚❚ otherwise
+			const video = document.querySelector<HTMLVideoElement>('.stream-video');
+			const playing = Boolean(video && !video.paused && !video.ended);
+			const ix = 6 + ctx.measureText(time).width + 26;
+			ctx.beginPath();
+			if (playing) {
+				ctx.moveTo(ix, 26);
+				ctx.lineTo(ix, 60);
+				ctx.lineTo(ix + 28, 43);
+				ctx.closePath();
+				ctx.fill();
+			} else {
+				ctx.fillRect(ix, 26, 9, 34);
+				ctx.fillRect(ix + 16, 26, 9, 34);
+			}
 			// scanlines so it matches the shader-treated screen
 			ctx.shadowBlur = 0;
 			ctx.fillStyle = 'rgba(0,0,20,0.22)';
@@ -451,6 +468,18 @@ function Scene({ uiRef, dims, onFirstRaster, flipRef }: { uiRef: React.RefObject
 		rasterize(); // self-throttling: busy calls queue a trailing re-run
 	};
 
+	const onWheel = (e: ThreeEvent<WheelEvent>) => {
+		const parts = scrollParts();
+		if (!parts) return;
+		const max = Math.max(0, parts.inner.scrollHeight - parts.area.clientHeight);
+		const cur = parseFloat(parts.inner.dataset.offset || '0');
+		const next = Math.min(max, Math.max(0, cur + e.deltaY));
+		if (next === cur) return;
+		parts.inner.dataset.offset = String(next);
+		parts.inner.style.transform = `translateY(${-next}px)`;
+		rasterize();
+	};
+
 	const onClick = (e: ThreeEvent<MouseEvent>) => {
 		if (drag.current.moved) { drag.current.moved = false; return; }
 		const p = uvToUi(e);
@@ -481,6 +510,7 @@ function Scene({ uiRef, dims, onFirstRaster, flipRef }: { uiRef: React.RefObject
 				position={[0, 0, -Math.min(sw, sh) * 0.045 - 6]}
 				onPointerMove={onMove}
 				onPointerOut={() => { material.uniforms.uCursorOn.value = 0; endDrag(); }}
+				onWheel={onWheel}
 				onClick={onClick}
 			/>
 			<ClockOverlay sw={sw} sh={sh} />

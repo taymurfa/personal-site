@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { CrtTv } from './CrtTv';
 
-type StreamState = 'live' | 'offline';
 type NowPlaying = {
 	isPlaying: boolean;
 	title: string;
@@ -16,7 +15,6 @@ type NowPlaying = {
 };
 
 function App() {
-	const [streamState, setStreamState] = useState<StreamState>('live');
 	const [nowPlaying, setNowPlaying] = useState<NowPlaying | null>(null);
 	const [activePage, setActivePage] = useState<'live' | 'desk' | 'log' | 'about'>('live');
 	const [menuOpen, setMenuOpen] = useState(false);
@@ -37,7 +35,6 @@ function App() {
 
 	const streamUrl = import.meta.env.VITE_LIVE_STREAM_URL?.trim();
 	const hasStream = Boolean(streamUrl);
-	const isLive = hasStream && streamState === 'live';
 
 	useEffect(() => {
 		let isMounted = true;
@@ -83,8 +80,6 @@ function App() {
 						className="stream-video"
 						controls
 						muted
-						onCanPlay={() => setStreamState('live')}
-						onError={() => setStreamState('offline')}
 						playsInline
 						src={streamUrl}
 					/>
@@ -95,13 +90,6 @@ function App() {
 				</div>
 
 				<div className={`room-overlay ${activePage !== 'live' ? 'active' : ''}`} onClick={() => window.location.hash = 'live'} />
-
-				<div className="rec-badge">
-					<p className="osd-line">PLAY <span className="osd-play">▶</span></p>
-					<p className="osd-line">
-						{isLive ? 'REC' : 'STOP'} {isLive && <span className="dot live" />}
-					</p>
-				</div>
 
 				<div className="osd-menu">
 					<button type="button" className="osd-menu-trigger" onClick={() => setMenuOpen((o) => !o)}>
@@ -222,17 +210,19 @@ function PortfolioPage() {
 				</div>
 				<h2 className="cinema-title">{proj.title}</h2>
 				<p className="cinema-tagline">{proj.subtitle}</p>
-				<a className="cinema-link" href={proj.link} target="_blank" rel="noopener noreferrer">
-					View footage ↗
-				</a>
-				<div className="cinema-body">
-					<blockquote>“{proj.desc}”</blockquote>
-					<div className="cinema-detail">
+				<div className="cinema-columns">
+					<div className="cinema-copy">
+						<p className="cinema-lead">{proj.desc}</p>
 						<p>{proj.longDesc}</p>
+					</div>
+					<div className="cinema-detail">
 						<dl>
 							<div><dt>Role</dt><dd>{proj.role}</dd></div>
 							<div><dt>Stack</dt><dd>{proj.tech.join(' · ')}</dd></div>
 						</dl>
+						<a className="cinema-link" href={proj.link} target="_blank" rel="noopener noreferrer">
+							View footage ↗
+						</a>
 					</div>
 				</div>
 			</div>
@@ -410,6 +400,14 @@ function BioPage() {
 					<span>Python (FastAPI, PyTorch, NLTK)</span>
 					<span>PostgreSQL / Firebase</span>
 					<span>Docker / Vercel</span>
+				</div>
+				<h3>Channels</h3>
+				<div className="bio-links">
+					<a href="https://github.com/taymurfa" target="_blank" rel="noopener noreferrer">GitHub ↗ taymurfa</a>
+					<a href="https://linkedin.com/in/taymurfa" target="_blank" rel="noopener noreferrer">LinkedIn ↗ taymurfa</a>
+					<a href="https://instagram.com/taymurfa" target="_blank" rel="noopener noreferrer">Instagram ↗ @taymurfa</a>
+					<a href="https://x.com/taymurfa" target="_blank" rel="noopener noreferrer">X ↗ taymurfa</a>
+					<span className="bio-discord">Discord: taymr</span>
 				</div>
 			</div>
 		</div>
