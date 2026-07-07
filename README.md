@@ -1,27 +1,21 @@
 # personal-site
 
-A minimal Vite + React + TypeScript starter wired for react-three to power a personal portfolio.
+A live-room personal site built with Vite, React, and TypeScript.
 
 ## Scripts
 
-- dev: Start the dev server
-- build: Type-check and build for production
-- preview: Preview the production build
+- `npm run dev`: Start the local Vite server
+- `npm run typecheck`: Run TypeScript checks
+- `npm run build`: Build the production site
+- `npm run preview`: Preview the production build
 
-## Getting Started
+## Environment
 
-1. Install dependencies
-2. Start the dev server
+Set these in Vercel for the live deployment:
 
-## Stack
+- `VITE_LIVE_STREAM_URL`: Public HLS/MP4 playback URL for the room camera feed
+- `SPOTIFY_CLIENT_ID`: Spotify developer app client ID
+- `SPOTIFY_CLIENT_SECRET`: Spotify developer app client secret
+- `SPOTIFY_REFRESH_TOKEN`: Refresh token for the Spotify account whose playback should appear
 
-- Vite + React + TypeScript
-- three, @react-three/fiber, @react-three/drei
-- zustand, leva (optional controls)
-
-## Structure
-
-- src/main.tsx: React entry
-- src/App.tsx: App shell with Canvas and HUD
-- src/three/scenes/HeroScene.tsx: Example scene
-- src/styles/global.css: Minimal styling
+The browser only receives the normalized `/api/spotify-now-playing` response. Spotify secrets stay server-side.

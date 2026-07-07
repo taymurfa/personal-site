@@ -10,17 +10,5 @@ export default defineConfig({
 		alias: {
 			'@': '/src'
 		}
-	},
-	build: {
-		rollupOptions: {
-			output: {
-				manualChunks: {
-					'three': ['three'],
-					'react-three': ['@react-three/fiber', '@react-three/drei'],
-					'react-vendor': ['react', 'react-dom']
-				}
-			}
-		},
-		chunkSizeWarningLimit: 1000
 	}
 });
