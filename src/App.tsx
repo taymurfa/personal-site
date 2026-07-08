@@ -106,6 +106,7 @@ function App() {
 
 				{activePage !== 'live' && (
 					<aside className="left-stack expanded" aria-label="Content panel">
+						<a className="panel-close" href="#live" aria-label="Close panel">✕</a>
 						<div className="page-content-area">
 							<div className="page-scroll" key={activePage}>
 								{activePage === 'desk' && <PortfolioPage />}
@@ -239,140 +240,152 @@ function PortfolioPage() {
 	);
 }
 
-type GitHubEvent = {
-	id: string;
-	type: string;
-	created_at: string;
-	repo: {
-		name: string;
-	};
-	payload: {
-		ref?: string;
-		ref_type?: string;
-		action?: string;
-		number?: number;
-		pull_request?: {
-			title: string;
-		};
-		issue?: {
-			title: string;
-		};
-	};
-};
+type Entry = { date: string; body: string; images?: string[] };
 
-function FeedPage() {
-	const [logs, setLogs] = useState<{ date: string; title: string; body: string }[]>([]);
-	const [isLoading, setIsLoading] = useState(true);
-
+function useEntries(url: string) {
+	const [entries, setEntries] = useState<Entry[] | null>(null);
 	useEffect(() => {
 		let isMounted = true;
-		const fallbackLogs = [
-			{
-				date: 'May 26, 2026',
-				title: 'Spotify Audio Integration & Redesign',
-				body: 'Upgraded the Spotify widget with local HTML5 Audio playback. Fixed environment variable synchronization with Vercel Dev. Sleek new glassmorphic player UI.'
-			},
-			{
-				date: 'May 24, 2026',
-				title: 'Expo Peerakeet Build Success',
-				body: 'Completed Expo configuration updates for peerakeet-app. Enabled native builds and peer directory exports.'
-			},
-			{
-				date: 'May 22, 2026',
-				title: 'Topic Modeling on Mohs Data',
-				body: 'Trained Latent Dirichlet Allocation (LDA) models on 10k Reddit comments related to Mohs surgery. Successfully categorized major concerns: post-op pain, scarring, and healing timelines.'
-			}
-		];
+		fetch(url)
+			.then((r) => (r.ok ? r.json() : Promise.reject()))
+			.then((data: Entry[]) => { if (isMounted) setEntries(data); })
+			.catch(() => { if (isMounted) setEntries([]); });
+		return () => { isMounted = false; };
+	}, [url]);
+	return entries;
+}
 
-		const fetchGitHubEvents = async () => {
-			try {
-				const response = await fetch('https://api.github.com/users/taymurfa/events');
-				if (!response.ok) {
-					throw new Error('Failed to fetch from GitHub');
-				}
-				const events = (await response.json()) as GitHubEvent[];
+function formatNoteDate(iso: string) {
+	const d = new Date(`${iso}T00:00:00`);
+	if (Number.isNaN(d.getTime())) return iso;
+	const month = d.toLocaleDateString('en-US', { month: 'short' }).toUpperCase();
+	return `${month}.${d.getDate()} ${d.getFullYear()}`;
+}
 
-				const formattedLogs = events
-					.slice(0, 10)
-					.map((event) => {
-						const date = new Date(event.created_at).toLocaleDateString(undefined, {
-							year: 'numeric',
-							month: 'short',
-							day: 'numeric'
-						});
-						const repoName = event.repo.name.replace('taymurfa/', '');
+function EntryList({ entries }: { entries: Entry[] }) {
+	return (
+		<div className="notes-list">
+			{entries.map((entry, index) => (
+				<div className="note-entry" key={index}>
+					<div className="note-date">{formatNoteDate(entry.date)}</div>
+					{entry.body && <p>{entry.body}</p>}
+					{entry.images && entry.images.length > 0 && (
+						<div className="note-images">
+							{entry.images.map((src) => (
+								<img key={src} src={src} alt="" loading="lazy" />
+							))}
+						</div>
+					)}
+				</div>
+			))}
+		</div>
+	);
+}
 
-						let title = '';
-						let body = '';
+const MONTH_NAMES = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
 
-						switch (event.type) {
-							case 'PushEvent':
-								const branch = event.payload.ref?.replace('refs/heads/', '') || 'main';
-								title = `Pushed to ${repoName}`;
-								body = `Updated branch "${branch}" with new commits.`;
-								break;
-							case 'PullRequestEvent':
-								const action = event.payload.action || 'updated';
-								const prTitle = event.payload.pull_request?.title || '';
-								title = `${action.charAt(0).toUpperCase() + action.slice(1)} PR on ${repoName}`;
-								body = prTitle ? `"${prTitle}"` : `Pull Request #${event.payload.number}`;
-								break;
-							case 'CreateEvent':
-								const refType = event.payload.ref_type || 'repository';
-								const ref = event.payload.ref ? ` "${event.payload.ref}"` : '';
-								title = `Created ${refType} on ${repoName}`;
-								body = `Initialized new ${refType}${ref}.`;
-								break;
-							case 'IssueCommentEvent':
-								title = `Commented on ${repoName}`;
-								body = `Left a comment on issue #${event.payload.issue?.title || event.payload.number}.`;
-								break;
-							default:
-								title = `Activity on ${repoName}`;
-								body = `Triggered a ${event.type.replace('Event', '')} event.`;
-						}
+function isoDate(year: number, month: number, day: number) {
+	return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
 
-						return { date, title, body };
-					});
+function Calendar({
+	entryDates,
+	selected,
+	onSelect,
+}: {
+	entryDates: Set<string>;
+	selected: string | null;
+	onSelect: (iso: string) => void;
+}) {
+	const now = new Date();
+	const [view, setView] = useState({ year: now.getFullYear(), month: now.getMonth() });
 
-				if (isMounted) {
-					setLogs(formattedLogs.length > 0 ? formattedLogs : fallbackLogs);
-					setIsLoading(false);
-				}
-			} catch {
-				if (isMounted) {
-					setLogs(fallbackLogs);
-					setIsLoading(false);
-				}
-			}
-		};
+	const shift = (delta: number) => {
+		setView(({ year, month }) => {
+			const d = new Date(year, month + delta, 1);
+			return { year: d.getFullYear(), month: d.getMonth() };
+		});
+	};
 
-		fetchGitHubEvents();
-		return () => {
-			isMounted = false;
-		};
-	}, []);
+	const firstDay = new Date(view.year, view.month, 1).getDay();
+	const daysInMonth = new Date(view.year, view.month + 1, 0).getDate();
+	const cells: (number | null)[] = [
+		...Array.from({ length: firstDay }, () => null),
+		...Array.from({ length: daysInMonth }, (_, i) => i + 1),
+	];
+
+	return (
+		<div className="cal">
+			<div className="cal-head">
+				<button type="button" onClick={() => shift(-1)} aria-label="Previous month">←</button>
+				<span>{MONTH_NAMES[view.month]} {view.year}</span>
+				<button type="button" onClick={() => shift(1)} aria-label="Next month">→</button>
+			</div>
+			<div className="cal-grid">
+				{['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => (
+					<span className="cal-dow" key={i}>{d}</span>
+				))}
+				{cells.map((day, i) => {
+					if (day === null) return <span key={`b${i}`} />;
+					const iso = isoDate(view.year, view.month, day);
+					const has = entryDates.has(iso);
+					const cls = ['cal-day', has ? 'has-entry' : '', selected === iso ? 'selected' : ''].join(' ').trim();
+					return (
+						<button type="button" className={cls} key={iso} onClick={() => has && onSelect(iso)}>
+							{day}
+						</button>
+					);
+				})}
+			</div>
+		</div>
+	);
+}
+
+function FeedPage() {
+	const [tab, setTab] = useState<'daily' | 'notes'>('daily');
+	const [selected, setSelected] = useState<string | null>(null);
+	const daily = useEntries('/daily.json');
+	const notes = useEntries('/notes.json');
+
+	const entries = tab === 'daily' ? daily : notes;
+	const entryDates = new Set((entries ?? []).map((e) => e.date));
+
+	// default to the most recent entry when the tab's data arrives
+	useEffect(() => {
+		const latest = (tab === 'daily' ? daily : notes)?.[0]?.date ?? null;
+		setSelected(latest);
+	}, [tab, daily, notes]);
+
+	const dayEntries = (entries ?? []).filter((e) => e.date === selected);
 
 	return (
 		<div className="feed-container">
-			<h2>Activity Log</h2>
-			{isLoading ? (
-				<div className="feed-loading">
-					Loading active feed...
+			<div className="blog-tabs">
+				<button
+					type="button"
+					className={tab === 'daily' ? 'active' : ''}
+					onClick={() => setTab('daily')}
+				>
+					Daily
+				</button>
+				<button
+					type="button"
+					className={tab === 'notes' ? 'active' : ''}
+					onClick={() => setTab('notes')}
+				>
+					Notes
+				</button>
+			</div>
+			<div className="blog-layout">
+				<Calendar entryDates={entryDates} selected={selected} onSelect={setSelected} />
+				<div className="blog-detail">
+					{entries === null && <div className="feed-loading">Reading tape...</div>}
+					{entries !== null && dayEntries.length === 0 && (
+						<div className="feed-loading">No entry for this day</div>
+					)}
+					{dayEntries.length > 0 && <EntryList entries={dayEntries} />}
 				</div>
-			) : (
-				<div className="timeline">
-					{logs.map((log, index) => (
-						<div className="timeline-item" key={index}>
-							<div className="timeline-date">{log.date}</div>
-							<div className="timeline-content">
-								<h3>{log.title}</h3>
-								<p>{log.body}</p>
-							</div>
-						</div>
-					))}
-				</div>
-			)}
+			</div>
 		</div>
 	);
 }

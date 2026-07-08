@@ -206,7 +206,7 @@ void main() {
 	}
 
 	// scanlines
-	c *= 0.94 + 0.06 * sin(vUv.y * uRes.y * 2.094);
+	c *= 0.955 + 0.045 * sin(vUv.y * uRes.y * 2.094);
 
 	// tracking bar sweep (~every 9s)
 	float tt = mod(uTime, 9.0);
@@ -232,7 +232,7 @@ void main() {
 
 	// vignette
 	vec2 v = vUv - 0.5;
-	c *= 1.0 - 0.32 * smoothstep(0.3, 0.68, dot(v, v));
+	c *= 1.0 - 0.24 * smoothstep(0.32, 0.72, dot(v, v));
 
 	gl_FragColor = vec4(c, 1.0);
 }
@@ -491,7 +491,8 @@ function Scene({ uiRef, dims, onFirstRaster, flipRef }: { uiRef: React.RefObject
 			window.open(clickable.href, '_blank', 'noopener');
 			return;
 		}
-		if (clickable instanceof HTMLAnchorElement && clickable.hash) {
+		const closesViaOverlay = el instanceof HTMLElement && el.classList.contains('room-overlay');
+		if (closesViaOverlay || (clickable instanceof HTMLAnchorElement && clickable.hash)) {
 			// channel-change static burst masks the re-raster latency
 			material.uniforms.uFlipStart.value = clockRef.current;
 		}

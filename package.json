@@ -8,7 +8,9 @@
     "build": "node node_modules/vite/bin/vite.js build",
     "preview": "node node_modules/vite/bin/vite.js preview",
     "typecheck": "node node_modules/typescript/bin/tsc --noEmit",
-    "vercel-build": "node node_modules/vite/bin/vite.js build"
+    "vercel-build": "node node_modules/vite/bin/vite.js build",
+    "note": "node scripts/entry.mjs note",
+    "daily": "node scripts/entry.mjs daily"
   },
   "dependencies": {
     "@react-three/fiber": "^8.18.0",
