@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type Dispatch, type SetStateAction } from 'react';
 import { CrtTv } from './CrtTv';
 
 type NowPlaying = {
@@ -18,6 +18,7 @@ function App() {
 	const [nowPlaying, setNowPlaying] = useState<NowPlaying | null>(null);
 	const [activePage, setActivePage] = useState<'live' | 'desk' | 'log' | 'about'>('live');
 	const [menuOpen, setMenuOpen] = useState(false);
+	const [projIndex, setProjIndex] = useState(0);
 
 	useEffect(() => {
 		const handleHashChange = () => {
@@ -91,7 +92,7 @@ function App() {
 
 				<div className={`room-overlay ${activePage !== 'live' ? 'active' : ''}`} onClick={() => window.location.hash = 'live'} />
 
-				<div className="osd-menu">
+				<div className={`osd-menu ${activePage !== 'live' ? 'behind' : ''}`}>
 					<button type="button" className="osd-menu-trigger" onClick={() => setMenuOpen((o) => !o)}>
 						Taymur Faruqui ▾
 					</button>
@@ -104,14 +105,26 @@ function App() {
 					)}
 				</div>
 
-				{activePage !== 'live' && (
+				{activePage === 'log' && <FeedPage />}
+
+				{activePage !== 'live' && activePage !== 'about' && activePage !== 'log' && (
 					<aside className="left-stack expanded" aria-label="Content panel">
+						<nav className="folder-tabs" aria-label="Projects">
+							{PROJECTS.map((p, i) => (
+								<a
+									key={p.title}
+									href="#desk"
+									className={activePage === 'desk' && i === projIndex ? 'active' : ''}
+									onClick={() => setProjIndex(i)}
+								>
+									{p.title}
+								</a>
+							))}
+						</nav>
 						<a className="panel-close" href="#live" aria-label="Close panel">✕</a>
 						<div className="page-content-area">
 							<div className="page-scroll" key={activePage}>
-								{activePage === 'desk' && <PortfolioPage />}
-								{activePage === 'log' && <FeedPage />}
-								{activePage === 'about' && <BioPage />}
+								{activePage === 'desk' && <PortfolioPage index={projIndex} setIndex={setProjIndex} />}
 							</div>
 						</div>
 					</aside>
@@ -128,6 +141,7 @@ function App() {
 				</a>
 			</section>
 			</CrtTv>
+			{activePage === 'about' && <BioPage />}
 		</main>
 	);
 }
@@ -145,10 +159,7 @@ interface Project {
 	timeline: string;
 }
 
-function PortfolioPage() {
-	const [index, setIndex] = useState(0);
-
-	const projects: Project[] = [
+const PROJECTS: Project[] = [
 		{
 			title: 'reddit-mohs-nlp',
 			subtitle: 'A study of patient voices',
@@ -174,19 +185,21 @@ function PortfolioPage() {
 			timeline: '2025'
 		},
 		{
-			title: 'personal-site',
-			subtitle: 'A portrait of a workspace',
-			desc: 'The site you are looking at, looking back at you.',
-			longDesc: 'A personal desktop simulator environment featuring glassmorphic windows, real-time Spotify "now playing" synchronization, Vercel serverless integration, dynamic GitHub event logging streams, and interactive canvas components.',
-			tech: ['React', 'TypeScript', 'Vite', 'CSS3', 'Spotify API', 'Vercel Serverless'],
-			mainTag: 'FRONTEND & API',
-			image: '/personal_site.png',
-			link: 'https://github.com/taymurfa/personal-site',
-			role: 'Creator / Designer',
+			title: 'quant-code',
+			subtitle: 'Agentic quant strategy research',
+			desc: 'A CLI-first research agent that hunts for trading strategies.',
+			longDesc: 'A CLI-first agentic research workflow for systematic strategy discovery, using Claude Code as a local agent. It researches market hypotheses, generates schema-validated strategy specs, gates them through feasibility checks, runs a backtest-learning loop with paper portfolio simulation, and compresses long reasoning traces into reusable semantic memory in Redis.',
+			tech: ['Python', 'TypeScript', 'FastAPI', 'Next.js', 'Redis', 'Claude API'],
+			mainTag: 'AGENTIC QUANT',
+			image: '/quant_code.png',
+			link: 'https://github.com/Ayush-Agarwal07/quant-code',
+			role: 'Developer',
 			timeline: '2026'
 		}
-	];
+];
 
+function PortfolioPage({ index, setIndex }: { index: number; setIndex: Dispatch<SetStateAction<number>> }) {
+	const projects = PROJECTS;
 	const next = () => setIndex((i) => (i + 1) % projects.length);
 	const prev = () => setIndex((i) => (i - 1 + projects.length) % projects.length);
 
@@ -359,31 +372,47 @@ function FeedPage() {
 	const dayEntries = (entries ?? []).filter((e) => e.date === selected);
 
 	return (
-		<div className="feed-container">
-			<div className="blog-tabs">
-				<button
-					type="button"
-					className={tab === 'daily' ? 'active' : ''}
-					onClick={() => setTab('daily')}
-				>
-					Daily
-				</button>
-				<button
-					type="button"
-					className={tab === 'notes' ? 'active' : ''}
-					onClick={() => setTab('notes')}
-				>
-					Notes
-				</button>
+		<div className="win98-window" role="dialog" aria-label="Blog">
+			<div className="win98-titlebar">
+				<span>Blog</span>
+				<a className="win98-close" href="#live" aria-label="Close">×</a>
 			</div>
-			<div className="blog-layout">
-				<Calendar entryDates={entryDates} selected={selected} onSelect={setSelected} />
-				<div className="blog-detail">
-					{entries === null && <div className="feed-loading">Reading tape...</div>}
-					{entries !== null && dayEntries.length === 0 && (
-						<div className="feed-loading">No entry for this day</div>
-					)}
-					{dayEntries.length > 0 && <EntryList entries={dayEntries} />}
+			<div className="win98-content">
+				<div className="win98-tabs">
+					<button
+						type="button"
+						className={tab === 'daily' ? 'active' : ''}
+						onClick={() => setTab('daily')}
+					>
+						Daily
+					</button>
+					<button
+						type="button"
+						className={tab === 'notes' ? 'active' : ''}
+						onClick={() => setTab('notes')}
+					>
+						Notes
+					</button>
+				</div>
+				<div className="win98-page">
+					<div className="win98-group">
+						<span className="win98-group-label">Date</span>
+						<Calendar entryDates={entryDates} selected={selected} onSelect={setSelected} />
+					</div>
+					<div className="win98-group">
+						<span className="win98-group-label">Entry</span>
+						<div className="win98-notepad">
+							{entries === null && <div className="feed-loading">Reading tape...</div>}
+							{entries !== null && dayEntries.length === 0 && (
+								<div className="feed-loading">No entry for this day</div>
+							)}
+							{dayEntries.length > 0 && <EntryList entries={dayEntries} />}
+						</div>
+					</div>
+				</div>
+				<div className="win98-buttons">
+					<a href="#live">OK</a>
+					<a href="#live">Cancel</a>
 				</div>
 			</div>
 		</div>
@@ -391,29 +420,31 @@ function FeedPage() {
 }
 
 function BioPage() {
+	const [crawlDone, setCrawlDone] = useState(false);
 	return (
-		<div className="bio-container">
-			<h2>About Me</h2>
-			<div className="bio-text">
+		<div className="bio-crawl-page">
+			<a className="bio-crawl-close" href="#live" aria-label="Close bio">✕</a>
+			<div className="bio-crawl-stage">
+				<div className="bio-crawl" onAnimationEnd={() => setCrawlDone(true)}>
+					<h2>About Me</h2>
+					<div className="bio-text">
 				<p>
-					Hi, I'm <strong>Taymur Faruqui</strong>, a software engineer passionate about building high-quality,
-					interactive web and mobile applications. I specialize in the React/React Native ecosystem,
-					TypeScript, and backend Python engineering.
+					Hi, I'm <strong>Taymur Faruqui</strong>, a math student at Purdue interested in quantitative trading,
+					AI systems, and applied research. I like building tools that turn messy real-world information into 
+					structured decisions, whether that means extracting patient concerns from public health data, designing 
+					AI workflows for compliance, or exploring trading strategies through probability, market structure, and automation.
 				</p>
+
 				<p>
-					I enjoy combining clean technical architectures with high-fidelity frontend aesthetics. Whether it's
-					extracting insights from clinical discussions using NLP or creating responsive, immersive user interfaces,
-					I focus on delivering robust and polished products.
+					My work spans software engineering, research, and finance. I’ve built NLP pipelines for medical research, 
+					contributed to an addiction recovery platform at Peerakeet, worked on private credit and energy finance 
+					analysis, and competed in quantitative trading through BoilerQuant and IMC Prosperity. Across everything
+					I do, I’m drawn to problems where strong technical thinking can create practical, measurable impact.
 				</p>
-				<h3>Core Tech Stack</h3>
-				<div className="bio-tech-list">
-					<span>React / React Native</span>
-					<span>TypeScript</span>
-					<span>Node.js / Express</span>
-					<span>Python (FastAPI, PyTorch, NLTK)</span>
-					<span>PostgreSQL / Firebase</span>
-					<span>Docker / Vercel</span>
+					</div>
 				</div>
+			</div>
+			<div className={`bio-socials${crawlDone ? ' visible' : ''}`}>
 				<h3>Channels</h3>
 				<div className="bio-links">
 					<a href="https://github.com/taymurfa" target="_blank" rel="noopener noreferrer">GitHub ↗ taymurfa</a>

@@ -17,7 +17,7 @@ class GLBoundary extends Component<{ children: ReactNode; fallback: ReactNode },
 const BEZEL = 44; // px of CRT plastic hugging the window edges
 const CORNER = 40; // screen-opening corner radius
 const UI_W = 1120; // ui-source layout width; height follows screen aspect
-const RASTER_SCALE = 2;
+const RASTER_SCALE = 1.5; // ponytail: 2x doubled snapshot cost; CRT shader noise hides the difference
 const FOV = 40;
 
 type Dims = { w: number; h: number };
@@ -338,6 +338,25 @@ function ClockOverlay({ sw, sh }: { sw: number; sh: number }) {
 	);
 }
 
+/** Caps the render loop below display refresh — 120Hz ProMotion was quadrupling GPU work for a VHS look. */
+function FrameLimiter({ fps }: { fps: number }) {
+	const invalidate = useThree((s) => s.invalidate);
+	useEffect(() => {
+		let raf = 0;
+		let last = 0;
+		const loop = (t: number) => {
+			raf = requestAnimationFrame(loop);
+			if (t - last >= 1000 / fps) {
+				last = t;
+				invalidate();
+			}
+		};
+		raf = requestAnimationFrame(loop);
+		return () => cancelAnimationFrame(raf);
+	}, [invalidate, fps]);
+	return null;
+}
+
 function Scene({ uiRef, dims, onFirstRaster, flipRef }: { uiRef: React.RefObject<HTMLDivElement>; dims: Dims; onFirstRaster: () => void; flipRef: React.MutableRefObject<(() => void) | null> }) {
 	const { camera } = useThree();
 	const sw = dims.w - 2 * BEZEL;
@@ -418,12 +437,22 @@ function Scene({ uiRef, dims, onFirstRaster, flipRef }: { uiRef: React.RefObject
 		return el;
 	};
 
+	// hover highlight: tag the clickable under the cursor; the MutationObserver re-rasterizes
+	const hoverEl = useRef<HTMLElement | null>(null);
+	const setHover = (el: HTMLElement | null) => {
+		if (el === hoverEl.current) return;
+		hoverEl.current?.classList.remove('is-hover');
+		el?.classList.add('is-hover');
+		hoverEl.current = el;
+	};
+
 	const onMove = (e: ThreeEvent<PointerEvent>) => {
 		if (!e.uv) return;
 		material.uniforms.uCursor.value.set(e.uv.x, e.uv.y);
 		material.uniforms.uCursorOn.value = 1;
 		const p = uvToUi(e);
 		if (!p) return;
+		setHover((uiElementAt(p)?.closest('a, button') as HTMLElement | null) ?? null);
 		const pressed = (e.buttons & 1) === 1;
 		if (pressed && !drag.current.active) {
 			const parts = scrollParts();
@@ -445,6 +474,25 @@ function Scene({ uiRef, dims, onFirstRaster, flipRef }: { uiRef: React.RefObject
 	// click-and-drag scrolling of the content panel
 	const drag = useRef({ active: false, startY: 0, startOffset: 0, moved: false });
 
+	// scroll snapshots at most every 80ms, with a trailing run so the final position lands
+	const scrollRaster = useMemo(() => {
+		let last = 0;
+		let timer = 0;
+		return () => {
+			const wait = 80 - (performance.now() - last);
+			if (wait <= 0) {
+				last = performance.now();
+				rasterize();
+			} else {
+				window.clearTimeout(timer);
+				timer = window.setTimeout(() => {
+					last = performance.now();
+					rasterize();
+				}, wait);
+			}
+		};
+	}, [rasterize]);
+
 	const scrollParts = () => {
 		const root = uiRef.current;
 		const area = root?.querySelector<HTMLElement>('.page-content-area') ?? null;
@@ -465,7 +513,7 @@ function Scene({ uiRef, dims, onFirstRaster, flipRef }: { uiRef: React.RefObject
 		if (parseFloat(parts.inner.dataset.offset || '0') === next) return;
 		parts.inner.dataset.offset = String(next);
 		parts.inner.style.transform = `translateY(${-next}px)`;
-		rasterize(); // self-throttling: busy calls queue a trailing re-run
+		scrollRaster();
 	};
 
 	const onWheel = (e: ThreeEvent<WheelEvent>) => {
@@ -477,7 +525,7 @@ function Scene({ uiRef, dims, onFirstRaster, flipRef }: { uiRef: React.RefObject
 		if (next === cur) return;
 		parts.inner.dataset.offset = String(next);
 		parts.inner.style.transform = `translateY(${-next}px)`;
-		rasterize();
+		scrollRaster();
 	};
 
 	const onClick = (e: ThreeEvent<MouseEvent>) => {
@@ -510,12 +558,13 @@ function Scene({ uiRef, dims, onFirstRaster, flipRef }: { uiRef: React.RefObject
 				material={material}
 				position={[0, 0, -Math.min(sw, sh) * 0.045 - 6]}
 				onPointerMove={onMove}
-				onPointerOut={() => { material.uniforms.uCursorOn.value = 0; endDrag(); }}
+				onPointerOut={() => { material.uniforms.uCursorOn.value = 0; endDrag(); setHover(null); }}
 				onWheel={onWheel}
 				onClick={onClick}
 			/>
 			<ClockOverlay sw={sw} sh={sh} />
-			<pointLight ref={spill} position={[0, 0, 46]} distance={Math.max(sw, sh) * 1.1} decay={1.6} />
+			{/* decay=0: with 1 unit = 1 px, physical falloff killed the light before it reached the bezel */}
+			<pointLight ref={spill} position={[0, 0, 60]} distance={Math.max(sw, sh) * 1.4} decay={0} />
 			<mesh geometry={bezel} position={[0, 0, -42]}>
 				<meshStandardMaterial color="#17171b" roughness={0.62} metalness={0.08} />
 			</mesh>
@@ -627,10 +676,12 @@ export function CrtTv({ children }: { children: ReactNode }) {
 				{children}
 			</div>
 			<GLBoundary fallback={null}>
-				<Canvas className="tv-canvas" gl={{ antialias: true, powerPreference: 'high-performance' }} dpr={[1, 2]}>
+				<Canvas className="tv-canvas" frameloop="demand" gl={{ antialias: false, powerPreference: 'high-performance' }} dpr={[1, 1.5]}>
+					<FrameLimiter fps={48} />
 					<color attach="background" args={['#08080e']} />
-					<ambientLight intensity={0.55} />
-					<directionalLight position={[0.4, 1, 0.8]} intensity={1.1} />
+					{/* dimmer fixed lights so the content-driven spill visibly moves the bezel */}
+					<ambientLight intensity={0.35} />
+					<directionalLight position={[0.4, 1, 0.8]} intensity={0.7} />
 					<directionalLight position={[-0.6, -0.3, 0.5]} intensity={0.4} color="#8090ff" />
 					<Scene uiRef={uiRef} dims={dims} onFirstRaster={onFirstRaster} flipRef={flipRef} />
 				</Canvas>
