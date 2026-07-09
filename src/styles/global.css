@@ -87,8 +87,8 @@ hidden under the canvas */
 	position: fixed;
 	top: 0;
 	left: 0;
-	width: 1120px;
-	height: 880px; /* overridden from JS to match screen aspect */
+	width: 1120px; /* width and height overridden from JS to match screen aspect */
+	height: 880px;
 	transform-origin: top left;
 	z-index: 1;
 }

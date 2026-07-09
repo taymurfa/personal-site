@@ -16,7 +16,15 @@ class GLBoundary extends Component<{ children: ReactNode; fallback: ReactNode },
 
 const BEZEL = 44; // px of CRT plastic hugging the window edges
 const CORNER = 40; // screen-opening corner radius
-const UI_W = 1120; // ui-source layout width; height follows screen aspect
+const UI_W = 1120; // ui-source layout width on normal/tall screens
+const UI_H = 630; // = UI_W at 16:9; the height floor for wide screens
+
+/** ui-source layout size: width-locked at UI_W on tall/normal screens, height-locked
+    at UI_H on wide ones — otherwise ultrawides squash the UI into a letterbox slit. */
+function uiSize(sw: number, sh: number) {
+	const uiW = Math.max(UI_W, Math.round(UI_H * (sw / sh)));
+	return { uiW, uiH: Math.round(uiW * (sh / sw)) };
+}
 const RASTER_SCALE = 1.5; // ponytail: 2x doubled snapshot cost; CRT shader noise hides the difference
 const FOV = 40;
 
@@ -95,7 +103,7 @@ function useBezelGeometry(w: number, h: number) {
  * cursor, vignette) live in the screen shader; the texture only re-uploads when
  * the DOM actually changed, so pointer motion costs nothing.
  */
-function useUiTexture(uiRef: React.RefObject<HTMLDivElement>, uiH: number, onFirstRaster?: () => void) {
+function useUiTexture(uiRef: React.RefObject<HTMLDivElement>, uiW: number, uiH: number, onFirstRaster?: () => void) {
 	const display = useMemo(() => document.createElement('canvas'), []);
 	const texture = useMemo(() => {
 		const t = new THREE.CanvasTexture(display);
@@ -115,12 +123,12 @@ function useUiTexture(uiRef: React.RefObject<HTMLDivElement>, uiH: number, onFir
 	}, []);
 
 	useEffect(() => {
-		display.width = UI_W * RASTER_SCALE;
+		display.width = uiW * RASTER_SCALE;
 		display.height = Math.round(uiH) * RASTER_SCALE;
 		// keep alpha: transparent DOM regions let the live video show through in the shader
 		display.getContext('2d')!.clearRect(0, 0, display.width, display.height);
 		texture.needsUpdate = true;
-	}, [display, texture, uiH]);
+	}, [display, texture, uiW, uiH]);
 
 	const rasterize = useMemo(() => () => {
 		const run = async () => {
@@ -289,9 +297,9 @@ function formatLocalDate() {
     Laid out in UI px × S over the whole screen. */
 function OsdOverlay({ sw, sh }: { sw: number; sh: number }) {
 	const S = 2; // canvas oversampling for crisp glyphs
-	const uiH = UI_W * (sh / sw);
-	const W = Math.round(UI_W * S);
-	const H = Math.round(uiH * S);
+	const { uiW, uiH } = uiSize(sw, sh);
+	const W = uiW * S;
+	const H = uiH * S;
 	const [onHome, setOnHome] = useState(true);
 
 	useEffect(() => {
@@ -350,7 +358,7 @@ function OsdOverlay({ sw, sh }: { sw: number; sh: number }) {
 			}
 
 			// tape speed + battery, bottom-right
-			const bx = (UI_W - 58) * S;
+			const bx = (uiW - 58) * S;
 			ctx.textAlign = 'right';
 			ctx.fillText('SP', bx - 48 * S, dateY);
 			ctx.textAlign = 'left';
@@ -378,7 +386,7 @@ function OsdOverlay({ sw, sh }: { sw: number; sh: number }) {
 		draw();
 		const id = window.setInterval(draw, 1000);
 		return () => window.clearInterval(id);
-	}, [canvas, texture, W, H, uiH]);
+	}, [canvas, texture, W, H, uiW, uiH]);
 
 	if (!onHome) return null;
 	return (
@@ -412,10 +420,10 @@ function Scene({ uiRef, dims, onFirstRaster, flipRef }: { uiRef: React.RefObject
 	const { camera } = useThree();
 	const sw = dims.w - 2 * BEZEL;
 	const sh = dims.h - 2 * BEZEL;
-	const uiH = UI_W * (sh / sw);
+	const { uiW, uiH } = uiSize(sw, sh);
 	const screen = useScreenGeometry(sw, sh);
 	const bezel = useBezelGeometry(dims.w, dims.h);
-	const { texture, rasterize, avgColor } = useUiTexture(uiRef, uiH, onFirstRaster);
+	const { texture, rasterize, avgColor } = useUiTexture(uiRef, uiW, uiH, onFirstRaster);
 
 	const material = useMemo(() => new THREE.ShaderMaterial({
 		uniforms: {
@@ -497,7 +505,7 @@ function Scene({ uiRef, dims, onFirstRaster, flipRef }: { uiRef: React.RefObject
 
 	const uvToUi = (e: ThreeEvent<PointerEvent | MouseEvent>) => {
 		if (!e.uv) return null;
-		return { x: e.uv.x * UI_W, y: (1 - e.uv.y) * uiH };
+		return { x: e.uv.x * uiW, y: (1 - e.uv.y) * uiH };
 	};
 
 	const uiElementAt = (p: { x: number; y: number }) => {
@@ -734,16 +742,17 @@ export function CrtTv({ children }: { children: ReactNode }) {
 	}, []);
 	const sw = dims.w - 2 * BEZEL;
 	const sh = dims.h - 2 * BEZEL;
-	const uiH = Math.round(UI_W * (sh / sw));
+	const { uiW, uiH } = uiSize(sw, sh);
 
 	useEffect(() => {
 		const el = uiRef.current;
 		if (!el) return;
+		el.style.width = `${uiW}px`;
 		el.style.height = `${uiH}px`;
-		const s = Math.min(dims.w / UI_W, dims.h / uiH, 1);
+		const s = Math.min(dims.w / uiW, dims.h / uiH, 1);
 		el.style.transform = `scale(${s})`;
 		el.dataset.scale = String(s);
-	}, [dims, uiH]);
+	}, [dims, uiW, uiH]);
 
 	return (
 		<>
