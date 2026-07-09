@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=VT323&display=swap");
+/* VT323 is loaded via <link> in index.html */
 
 /* Found footage — after The Blair Witch Project: pure black,
 poster red,
@@ -114,13 +114,19 @@ hidden under the canvas */
 	box-shadow: inset 0 0 110px rgba(0, 0, 0, 0.65);
 }
 
+/* texture source only: CrtTv samples it into the shader; never shown directly */
 .stream-video {
-	position: absolute;
-	inset: 0;
-	z-index: 0;
-	width: 100%;
-	height: 100%;
-	object-fit: cover;
+	display: none;
+}
+
+/* live feed showing: drop the black backdrop so the raster is transparent where footage shows through */
+.room-frame.live {
+	background: transparent;
+	box-shadow: none;
+}
+
+.room-frame.live .ambient {
+	background: none; /* ::before corner brackets stay as camcorder chrome over the footage */
 }
 
 .ambient {
@@ -149,10 +155,6 @@ hidden under the canvas */
 		linear-gradient(#fff, #fff) bottom right / 110px 2px;
 	background-repeat: no-repeat;
 	opacity: 0.85;
-}
-
-.ambient i {
-	display: none;
 }
 
 .osd-menu {
@@ -204,29 +206,6 @@ hidden under the canvas */
 
 .osd-dropdown a:last-child {
 	border-bottom: 0;
-}
-
-.osd-clock {
-	position: absolute;
-	z-index: 6;
-	bottom: 56px;
-	left: 62px;
-}
-
-.osd-clock p {
-	margin: 0 0 4px;
-	color: var(--cream);
-	font-family: "VT323", monospace;
-	font-size: 26px;
-	letter-spacing: 5px;
-	text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
-}
-
-@keyframes blink {
-	50% {
-		opacity: 0.36;
-		box-shadow: 0 0 0 13px rgba(255, 255, 255, 0);
-	}
 }
 
 .left-stack {
@@ -349,11 +328,6 @@ hidden under the canvas */
 		top: 120px;
 	}
 
-	.osd-clock {
-		left: 34px;
-		bottom: 34px;
-	}
-
 	.left-stack {
 		left: 30px;
 		top: 250px;
@@ -376,34 +350,6 @@ hidden under the canvas */
 		margin-top: 10px;
 	}
 
-}
-
-.feed-container,
-.bio-container {
-	color: var(--cream);
-	font-family: "VT323", monospace;
-	animation: fadeInContent 0.4s ease forwards;
-}
-
-@keyframes fadeInContent {
-	from {
-		opacity: 0;
-		transform: translateY(10px);
-	}
-	to {
-		opacity: 1;
-		transform: translateY(0);
-	}
-}
-
-.feed-container h2,
-.bio-container h2 {
-	font-family: "VT323", monospace;
-	font-size: 24px;
-	color: var(--primary);
-	margin: 0 0 20px;
-	border-bottom: 1px solid var(--line);
-	padding-bottom: 10px;
 }
 
 /* Feed Page */
@@ -429,30 +375,6 @@ hidden under the canvas */
 
 .bio-text p strong {
 	color: var(--primary);
-}
-
-.bio-text h3 {
-	font-family: "VT323", monospace;
-	font-size: 18px;
-	color: var(--cream);
-	margin: 8px 0 0;
-}
-
-.bio-tech-list {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 8px;
-}
-
-.bio-tech-list span {
-	font-family: "VT323", monospace;
-	font-size: 16px;
-	font-weight: 400;
-	padding: 5px 12px;
-	border-radius: 0;
-	background: rgba(255, 255, 255, 0.06);
-	border: 1px solid var(--line);
-	color: var(--cream);
 }
 
 /* ---- Bio: full-screen star-wars crawl (lives outside the CRT raster) ---- */
@@ -489,6 +411,17 @@ hidden under the canvas */
 	text-decoration: none;
 	border: 1px solid var(--line);
 	padding: 4px 10px;
+}
+
+.bio-ff-hint {
+	position: absolute;
+	left: 24px;
+	bottom: 24px;
+	z-index: 2;
+	font-size: 18px;
+	letter-spacing: 3px;
+	text-transform: uppercase;
+	color: var(--muted);
 }
 
 .bio-crawl-stage {
@@ -559,34 +492,7 @@ hidden under the canvas */
 	}
 }
 
-/* ---- Cinematic portfolio (after siena.film) {
-	--c-ink: var(--cream);
-	--c-dim: var(--muted);
-	--c-hair: var(--line);
-	background: rgba(4, 4, 4, 0.6);
-	border: 1px solid var(--line);
-	color: var(--c-ink);
-	border-radius: 0;
-	padding: clamp(20px, 3vw, 44px);
-	display: flex;
-	flex-direction: column;
-	gap: 24px;
-	min-height: 100%;
-}
-
-@keyframes cinemaIn {
-	from { opacity: 0; transform: translateY(18px); }
-	to { opacity: 1; transform: none; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-	.feed-container,
-.bio-container {
-		animation: none;
-	}
-}
-
-/* ---- Portfolio: archive tape entries ---- */
+/* ---- Portfolio: archive tape entries (after siena.film) ---- */
 
 .cinema-portfolio {
 	display: flex;
@@ -840,6 +746,47 @@ hidden under the canvas */
 	padding: 14px 12px 12px;
 }
 
+.win98-page-single {
+	grid-template-columns: 1fr;
+}
+
+.notes-index {
+	display: flex;
+	flex-direction: column;
+}
+
+.notes-index button {
+	display: flex;
+	align-items: baseline;
+	gap: 18px;
+	padding: 6px 4px;
+	background: none;
+	border: none;
+	font-family: "Courier New", monospace;
+	font-size: 15px;
+	text-align: left;
+	cursor: pointer;
+}
+
+.notes-index-date {
+	color: #808080;
+	flex-shrink: 0;
+}
+
+.notes-index-title {
+	color: #000;
+}
+
+.notes-back {
+	background: none;
+	border: none;
+	padding: 0 0 10px;
+	font-family: "Courier New", monospace;
+	font-size: 14px;
+	color: #000080;
+	cursor: pointer;
+}
+
 .win98-group {
 	position: relative;
 	margin: 8px 0 0;
@@ -890,10 +837,6 @@ hidden under the canvas */
 }
 
 /* calendar re-skinned for the dialog */
-.win98-window .cal {
-	max-width: none;
-}
-
 .win98-window .cal-head {
 	border: none;
 	padding: 0 0 8px;
@@ -963,10 +906,10 @@ hidden under the canvas */
 }
 
 .win98-window .note-date {
-	color: #000080;
-	font-family: inherit;
-	font-weight: bold;
-	font-size: 12px;
+	color: #808080;
+	font-family: "Courier New", monospace;
+	font-weight: normal;
+	font-size: 15px;
 	margin-bottom: 4px;
 }
 
@@ -975,6 +918,7 @@ hidden under the canvas */
 	font-size: 14px;
 	line-height: 1.5;
 	max-width: none;
+	white-space: pre-line; /* honor \n line breaks written in the json */
 }
 
 /* hover: light grey wash instead of the CRT's white highlight */
@@ -988,38 +932,6 @@ hidden under the canvas */
 	color: #808080;
 	font-family: "Courier New", monospace;
 	font-size: 14px;
-}
-
-.blog-tabs {
-	display: flex;
-	gap: 12px;
-	margin-bottom: 20px;
-}
-
-.blog-tabs button {
-	background: transparent;
-	border: 1px solid rgba(255, 255, 255, 0.4);
-	color: var(--cream);
-	font-family: "VT323", monospace;
-	font-size: 18px;
-	letter-spacing: 3px;
-	text-transform: uppercase;
-	padding: 8px 22px;
-	cursor: pointer;
-}
-
-.blog-tabs button.active {
-	background: var(--cream);
-	color: #0a0a0a;
-	text-shadow: none;
-	box-shadow: 0 0 12px rgba(255, 255, 255, 0.35);
-}
-
-.blog-layout {
-	display: grid;
-	grid-template-columns: 300px 1fr;
-	gap: 28px;
-	align-items: start;
 }
 
 .cal {
@@ -1106,10 +1018,9 @@ hidden under the canvas */
 }
 
 .note-date {
-	font-family: "VT323", monospace;
-	font-size: 16px;
-	letter-spacing: 3px;
-	color: var(--muted);
+	font-family: "Courier New", monospace;
+	font-size: 15px;
+	color: #808080;
 	margin-bottom: 4px;
 }
 
@@ -1367,17 +1278,7 @@ then a hard cut (no fade) */
 	background: transparent;
 }
 
-/* readability on paper: full-strength ink, VT323 needs the extra size,
-   and prose needs a capped measure — full-width lines are unreadable */
-.left-stack.expanded .bio-text p,
-.left-stack.expanded .note-entry p,
-.left-stack.expanded .feed-loading {
-	color: #2a1808;
-	font-size: 19px;
-	line-height: 1.6;
-	max-width: 64ch;
-}
-
+/* readability on paper: full-strength ink, VT323 needs the extra size */
 .left-stack.expanded .cinema-copy p:not(.cinema-lead),
 .left-stack.expanded .cinema-detail dd {
 	color: #2a1808;
@@ -1402,24 +1303,8 @@ then a hard cut (no fade) */
 	font-size: 21px;
 }
 
-.left-stack.expanded .cinema-detail dt,
-.left-stack.expanded .note-date {
+.left-stack.expanded .cinema-detail dt {
 	font-size: 17px;
-}
-
-.left-stack.expanded .cal-day {
-	color: rgba(42, 24, 8, 0.5);
-	font-size: 19px;
-	height: 36px;
-}
-
-.left-stack.expanded .cal-day.has-entry {
-	color: #2a1808;
-}
-
-.left-stack.expanded .bio-text h3,
-.left-stack.expanded .bio-tech-list span {
-	font-size: 19px;
 }
 
 /* hover highlight — the class is applied by the CRT raycaster, not native :hover */
@@ -1442,17 +1327,6 @@ button.is-hover:not(.active):not(.selected) {
 	width: 34px;
 	height: 34px;
 	font-size: 20px;
-}
-
-.left-stack.expanded .bio-tech-list span {
-	background: rgba(42, 24, 8, 0.1);
-}
-
-/* filled states: dark ink block, folder-yellow text */
-.left-stack.expanded .blog-tabs button.active,
-.left-stack.expanded .cal-day.selected {
-	color: #ffd84d;
-	box-shadow: none;
 }
 
 .left-stack.expanded .cinema-dots button.active {

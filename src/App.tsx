@@ -1,30 +1,39 @@
-import { useEffect, useState, type Dispatch, type SetStateAction } from 'react';
+import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
+import { marked } from 'marked';
 import { CrtTv } from './CrtTv';
+import { LiveStream } from './LiveStream';
 
+marked.use({
+	renderer: {
+		link({ href, title, tokens }) {
+			const text = this.parser.parseInline(tokens);
+			return `<a href="${href}" title="${title ?? ''}" target="_blank" rel="noopener noreferrer">${text}</a>`;
+		},
+	},
+});
+
+// the API returns more fields; only these are rendered
 type NowPlaying = {
 	isPlaying: boolean;
 	title: string;
 	artist: string;
-	album: string;
-	albumArt: string;
-	url: string;
-	progressMs: number;
-	durationMs: number;
-	id?: string;
-	previewUrl?: string;
 };
+
+const PAGES = ['live', 'desk', 'log', 'about'] as const;
+type Page = (typeof PAGES)[number];
 
 function App() {
 	const [nowPlaying, setNowPlaying] = useState<NowPlaying | null>(null);
-	const [activePage, setActivePage] = useState<'live' | 'desk' | 'log' | 'about'>('live');
+	const [activePage, setActivePage] = useState<Page>('live');
 	const [menuOpen, setMenuOpen] = useState(false);
 	const [projIndex, setProjIndex] = useState(0);
+	const [streamLive, setStreamLive] = useState(false);
 
 	useEffect(() => {
 		const handleHashChange = () => {
 			const hash = window.location.hash.replace('#', '') || 'live';
-			if (['live', 'desk', 'log', 'about'].includes(hash)) {
-				setActivePage(hash as any);
+			if ((PAGES as readonly string[]).includes(hash)) {
+				setActivePage(hash as Page);
 			}
 		};
 
@@ -35,7 +44,6 @@ function App() {
 	}, []);
 
 	const streamUrl = import.meta.env.VITE_LIVE_STREAM_URL?.trim();
-	const hasStream = Boolean(streamUrl);
 
 	useEffect(() => {
 		let isMounted = true;
@@ -74,21 +82,10 @@ function App() {
 	return (
 		<main className="home-screen">
 			<CrtTv>
-			<section className="room-frame" aria-label="Live room home">
-				{hasStream && (
-					<video
-						autoPlay
-						className="stream-video"
-						controls
-						muted
-						playsInline
-						src={streamUrl}
-					/>
-				)}
+			<section className={`room-frame${streamLive ? ' live' : ''}`} aria-label="Live room home">
+				{streamUrl && <LiveStream url={streamUrl} onLiveChange={setStreamLive} />}
 
-				<div className="ambient" aria-hidden={hasStream}>
-					<i /><i /><i />
-				</div>
+				<div className="ambient" aria-hidden />
 
 				<div className={`room-overlay ${activePage !== 'live' ? 'active' : ''}`} onClick={() => window.location.hash = 'live'} />
 
@@ -153,7 +150,6 @@ interface Project {
 	longDesc: string;
 	tech: string[];
 	mainTag: string;
-	image: string;
 	link: string;
 	role: string;
 	timeline: string;
@@ -167,7 +163,6 @@ const PROJECTS: Project[] = [
 			longDesc: 'An end-to-end Reddit NLP analysis pipeline for Mohs surgery discussions. It scrapes posts, performs topic modeling (LDA), runs sentiment analysis, and displays the outcomes in a highly-interactive, responsive dashboard interface to help clinicians understand patients\' perspectives.',
 			tech: ['Python', 'React', 'NLP', 'LDA', 'FastAPI', 'Scikit-Learn'],
 			mainTag: 'CLINICAL NLP',
-			image: '/reddit_mohs.png',
 			link: 'https://github.com/taymurfa/reddit-mohs-nlp',
 			role: 'Lead Developer & Data Engineer',
 			timeline: '2026'
@@ -179,7 +174,6 @@ const PROJECTS: Project[] = [
 			longDesc: 'A mobile and web application built with React Native and Expo. Peerakeet facilitates peer-to-peer developer networking, custom audio huddles, knowledge sharing, and portfolio feedback through interactive, community-led rooms.',
 			tech: ['React Native', 'Expo', 'TypeScript', 'Node.js', 'Firebase', 'WebRTC'],
 			mainTag: 'MOBILE & P2P',
-			image: '/peerakeet.png',
 			link: 'https://github.com/taymurfa/peerakeet-app',
 			role: 'Full-Stack Developer',
 			timeline: '2025'
@@ -191,7 +185,6 @@ const PROJECTS: Project[] = [
 			longDesc: 'A CLI-first agentic research workflow for systematic strategy discovery, using Claude Code as a local agent. It researches market hypotheses, generates schema-validated strategy specs, gates them through feasibility checks, runs a backtest-learning loop with paper portfolio simulation, and compresses long reasoning traces into reusable semantic memory in Redis.',
 			tech: ['Python', 'TypeScript', 'FastAPI', 'Next.js', 'Redis', 'Claude API'],
 			mainTag: 'AGENTIC QUANT',
-			image: '/quant_code.png',
 			link: 'https://github.com/Ayush-Agarwal07/quant-code',
 			role: 'Developer',
 			timeline: '2026'
@@ -199,9 +192,8 @@ const PROJECTS: Project[] = [
 ];
 
 function PortfolioPage({ index, setIndex }: { index: number; setIndex: Dispatch<SetStateAction<number>> }) {
-	const projects = PROJECTS;
-	const next = () => setIndex((i) => (i + 1) % projects.length);
-	const prev = () => setIndex((i) => (i - 1 + projects.length) % projects.length);
+	const next = () => setIndex((i) => (i + 1) % PROJECTS.length);
+	const prev = () => setIndex((i) => (i - 1 + PROJECTS.length) % PROJECTS.length);
 
 	useEffect(() => {
 		const onKey = (e: KeyboardEvent) => {
@@ -212,13 +204,13 @@ function PortfolioPage({ index, setIndex }: { index: number; setIndex: Dispatch<
 		return () => window.removeEventListener('keydown', onKey);
 	}, []);
 
-	const proj = projects[index];
+	const proj = PROJECTS[index];
 
 	return (
 		<div className="cinema-portfolio">
 			<div className="cinema-slide" key={proj.title}>
 				<div className="cinema-meta">
-					<span className="cinema-index">{String(index + 1).padStart(2, '0')} / {String(projects.length).padStart(2, '0')}</span>
+					<span className="cinema-index">{String(index + 1).padStart(2, '0')} / {String(PROJECTS.length).padStart(2, '0')}</span>
 					<span>{proj.timeline}</span>
 					<span className="cinema-tag">{proj.mainTag}</span>
 				</div>
@@ -235,7 +227,7 @@ function PortfolioPage({ index, setIndex }: { index: number; setIndex: Dispatch<
 							<div><dt>Stack</dt><dd>{proj.tech.join(' · ')}</dd></div>
 						</dl>
 						<a className="cinema-link" href={proj.link} target="_blank" rel="noopener noreferrer">
-							View footage ↗
+							View project ↗
 						</a>
 					</div>
 				</div>
@@ -243,7 +235,7 @@ function PortfolioPage({ index, setIndex }: { index: number; setIndex: Dispatch<
 			<div className="cinema-nav">
 				<button type="button" onClick={prev} aria-label="Previous project">←</button>
 				<div className="cinema-dots">
-					{projects.map((_, i) => (
+					{PROJECTS.map((_, i) => (
 						<button key={i} className={i === index ? 'active' : ''} onClick={() => setIndex(i)} aria-label={`Project ${i + 1}`} />
 					))}
 				</div>
@@ -253,26 +245,48 @@ function PortfolioPage({ index, setIndex }: { index: number; setIndex: Dispatch<
 	);
 }
 
-type Entry = { date: string; body: string; images?: string[] };
+// body may be a string, or an array of lines for readability in the json file
+type Entry = { date: string; title?: string; body: string | string[]; images?: string[] };
 
-function useEntries(url: string) {
+function useEntries(url: string, parse: (r: Response) => Promise<Entry[]>) {
 	const [entries, setEntries] = useState<Entry[] | null>(null);
 	useEffect(() => {
 		let isMounted = true;
 		fetch(url)
-			.then((r) => (r.ok ? r.json() : Promise.reject()))
-			.then((data: Entry[]) => { if (isMounted) setEntries(data); })
+			.then((r) => (r.ok ? parse(r) : Promise.reject()))
+			.then((data) => { if (isMounted) setEntries(data); })
 			.catch(() => { if (isMounted) setEntries([]); });
 		return () => { isMounted = false; };
-	}, [url]);
+	}, [url, parse]);
 	return entries;
 }
 
-function formatNoteDate(iso: string) {
-	const d = new Date(`${iso}T00:00:00`);
-	if (Number.isNaN(d.getTime())) return iso;
-	const month = d.toLocaleDateString('en-US', { month: 'short' }).toUpperCase();
-	return `${month}.${d.getDate()} ${d.getFullYear()}`;
+const parseJson = (r: Response): Promise<Entry[]> => r.json();
+const parseMarkdown = (r: Response) => r.text().then(parseNotesMarkdown);
+
+const IMAGE_LINE_RE = /^!\[[^\]]*\]\(([^)\s]+)\)$/;
+
+// entries in markdown: `## YYYY-MM-DD Optional Title` header per entry, body text/bullets/links until the next header
+function parseNotesMarkdown(text: string): Entry[] {
+	const sections = text.split(/\r?\n(?=##\s+\d{4}-\d{2}-\d{2})/).map((s) => s.trim()).filter(Boolean);
+	return sections.map((section) => {
+		// [^\S\n] = horizontal whitespace only, so a titleless header can't swallow the first body line
+		const headerMatch = section.match(/^##\s+(\d{4}-\d{2}-\d{2})(?:[^\S\n]+(.*))?/);
+		const date = headerMatch?.[1] ?? '';
+		const title = headerMatch?.[2]?.trim() || undefined;
+		const rest = section.slice(headerMatch?.[0]?.length ?? 0).trim();
+		const images: string[] = [];
+		const bodyLines = rest.split('\n').filter((line) => {
+			const m = line.trim().match(IMAGE_LINE_RE);
+			if (m) { images.push(m[1]); return false; }
+			return true;
+		});
+		return { date, title, body: bodyLines.join('\n').trim(), images: images.length > 0 ? images : undefined };
+	});
+}
+
+function renderBody(body: string) {
+	return <div dangerouslySetInnerHTML={{ __html: marked.parse(body, { async: false }) }} />;
 }
 
 function EntryList({ entries }: { entries: Entry[] }) {
@@ -280,8 +294,8 @@ function EntryList({ entries }: { entries: Entry[] }) {
 		<div className="notes-list">
 			{entries.map((entry, index) => (
 				<div className="note-entry" key={index}>
-					<div className="note-date">{formatNoteDate(entry.date)}</div>
-					{entry.body && <p>{entry.body}</p>}
+					<div className="note-date">{shortDate(entry.date)}</div>
+					{entry.body && renderBody(Array.isArray(entry.body) ? entry.body.join('\n') : entry.body)}
 					{entry.images && entry.images.length > 0 && (
 						<div className="note-images">
 							{entry.images.map((src) => (
@@ -354,11 +368,23 @@ function Calendar({
 	);
 }
 
+function shortDate(iso: string) {
+	const [y, m, d] = iso.split('-');
+	return `${m}-${d}-${y.slice(2)}`;
+}
+
+function noteTitle(entry: Entry) {
+	if (entry.title) return entry.title;
+	const first = (Array.isArray(entry.body) ? entry.body[0] : entry.body ?? '').replace(/^-\s*/, '');
+	return first.length > 60 ? `${first.slice(0, 60)}…` : first;
+}
+
 function FeedPage() {
 	const [tab, setTab] = useState<'daily' | 'notes'>('daily');
 	const [selected, setSelected] = useState<string | null>(null);
-	const daily = useEntries('/daily.json');
-	const notes = useEntries('/notes.json');
+	const [openNote, setOpenNote] = useState<number | null>(null);
+	const daily = useEntries('/daily.json', parseJson);
+	const notes = useEntries('/notes.md', parseMarkdown);
 
 	const entries = tab === 'daily' ? daily : notes;
 	const entryDates = new Set((entries ?? []).map((e) => e.date));
@@ -367,7 +393,10 @@ function FeedPage() {
 	useEffect(() => {
 		const latest = (tab === 'daily' ? daily : notes)?.[0]?.date ?? null;
 		setSelected(latest);
+		setOpenNote(null);
 	}, [tab, daily, notes]);
+
+	const sortedNotes = notes === null ? null : [...notes].sort((a, b) => b.date.localeCompare(a.date));
 
 	const dayEntries = (entries ?? []).filter((e) => e.date === selected);
 
@@ -394,22 +423,50 @@ function FeedPage() {
 						Notes
 					</button>
 				</div>
-				<div className="win98-page">
-					<div className="win98-group">
-						<span className="win98-group-label">Date</span>
-						<Calendar entryDates={entryDates} selected={selected} onSelect={setSelected} />
-					</div>
-					<div className="win98-group">
-						<span className="win98-group-label">Entry</span>
-						<div className="win98-notepad">
-							{entries === null && <div className="feed-loading">Reading tape...</div>}
-							{entries !== null && dayEntries.length === 0 && (
-								<div className="feed-loading">No entry for this day</div>
-							)}
-							{dayEntries.length > 0 && <EntryList entries={dayEntries} />}
+				{tab === 'daily' ? (
+					<div className="win98-page">
+						<div className="win98-group">
+							<span className="win98-group-label">Date</span>
+							<Calendar entryDates={entryDates} selected={selected} onSelect={setSelected} />
+						</div>
+						<div className="win98-group">
+							<span className="win98-group-label">Entry</span>
+							<div className="win98-notepad">
+								{entries === null && <div className="feed-loading">Reading tape...</div>}
+								{entries !== null && dayEntries.length === 0 && (
+									<div className="feed-loading">No entry for this day</div>
+								)}
+								{dayEntries.length > 0 && <EntryList entries={dayEntries} />}
+							</div>
 						</div>
 					</div>
-				</div>
+				) : (
+					<div className="win98-page win98-page-single">
+						<div className="win98-group">
+							<span className="win98-group-label">Notes</span>
+							<div className="win98-notepad">
+								{sortedNotes === null && <div className="feed-loading">Reading tape...</div>}
+								{sortedNotes !== null && openNote === null && (
+									<div className="notes-index">
+										{sortedNotes.map((n, i) => (
+											<button type="button" key={i} onClick={() => setOpenNote(i)}>
+												<span className="notes-index-date">{shortDate(n.date)}</span>
+												<span className="notes-index-title">{noteTitle(n)}</span>
+											</button>
+										))}
+										{sortedNotes.length === 0 && <div className="feed-loading">No notes yet</div>}
+									</div>
+								)}
+								{sortedNotes !== null && openNote !== null && sortedNotes[openNote] && (
+									<>
+										<button type="button" className="notes-back" onClick={() => setOpenNote(null)}>← All notes</button>
+										<EntryList entries={[sortedNotes[openNote]]} />
+									</>
+								)}
+							</div>
+						</div>
+					</div>
+				)}
 				<div className="win98-buttons">
 					<a href="#live">OK</a>
 					<a href="#live">Cancel</a>
@@ -421,11 +478,29 @@ function FeedPage() {
 
 function BioPage() {
 	const [crawlDone, setCrawlDone] = useState(false);
+	const crawlRef = useRef<HTMLDivElement>(null);
+
+	// hold Enter to fast-forward the crawl
+	useEffect(() => {
+		const setRate = (rate: number) =>
+			crawlRef.current?.getAnimations().forEach((a) => { a.playbackRate = rate; });
+		const onKey = (e: KeyboardEvent) => {
+			if (e.key === 'Enter') setRate(e.type === 'keydown' ? 8 : 1);
+		};
+		window.addEventListener('keydown', onKey);
+		window.addEventListener('keyup', onKey);
+		return () => {
+			window.removeEventListener('keydown', onKey);
+			window.removeEventListener('keyup', onKey);
+		};
+	}, []);
+
 	return (
 		<div className="bio-crawl-page">
 			<a className="bio-crawl-close" href="#live" aria-label="Close bio">✕</a>
+			{!crawlDone && <div className="bio-ff-hint">Press ⏎ to fast forward</div>}
 			<div className="bio-crawl-stage">
-				<div className="bio-crawl" onAnimationEnd={() => setCrawlDone(true)}>
+				<div className="bio-crawl" ref={crawlRef} onAnimationEnd={() => setCrawlDone(true)}>
 					<h2>About Me</h2>
 					<div className="bio-text">
 				<p>

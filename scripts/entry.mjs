@@ -31,12 +31,22 @@ const images = imageArgs.map((src) => {
 	return dest.replace('public', '');
 });
 
-const file = kind === 'daily' ? 'public/daily.json' : 'public/notes.json';
-const entries = JSON.parse(readFileSync(file, 'utf8'));
-const entry = { date: today, body };
-if (images.length) entry.images = images;
-entries.unshift(entry);
-writeFileSync(file, JSON.stringify(entries, null, '\t') + '\n');
+let file;
+if (kind === 'daily') {
+	file = 'public/daily.json';
+	const entries = JSON.parse(readFileSync(file, 'utf8'));
+	const entry = { date: today, body };
+	if (images.length) entry.images = images;
+	entries.unshift(entry);
+	writeFileSync(file, JSON.stringify(entries, null, '\t') + '\n');
+} else {
+	// notes live in markdown: `## YYYY-MM-DD` section per entry (see parseNotesMarkdown in App.tsx)
+	file = 'public/notes.md';
+	const content = [body, ...images.map((src) => `![](${src})`)].filter(Boolean).join('\n');
+	const section = `## ${today}\n\n${content}`;
+	const existing = existsSync(file) ? readFileSync(file, 'utf8').trim() : '';
+	writeFileSync(file, section + (existing ? `\n\n${existing}` : '') + '\n');
+}
 
 execSync(`git add ${file}`, { stdio: 'inherit' });
 execSync(`git commit -m "${kind}: ${today}"`, { stdio: 'inherit' });

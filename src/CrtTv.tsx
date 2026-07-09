@@ -117,9 +117,8 @@ function useUiTexture(uiRef: React.RefObject<HTMLDivElement>, uiH: number, onFir
 	useEffect(() => {
 		display.width = UI_W * RASTER_SCALE;
 		display.height = Math.round(uiH) * RASTER_SCALE;
-		const ctx = display.getContext('2d')!;
-		ctx.fillStyle = '#0a0a0a';
-		ctx.fillRect(0, 0, display.width, display.height);
+		// keep alpha: transparent DOM regions let the live video show through in the shader
+		display.getContext('2d')!.clearRect(0, 0, display.width, display.height);
 		texture.needsUpdate = true;
 	}, [display, texture, uiH]);
 
@@ -139,8 +138,7 @@ function useUiTexture(uiRef: React.RefObject<HTMLDivElement>, uiH: number, onFir
 					fontEmbedCSS: fontCss.current,
 				});
 				const ctx = display.getContext('2d')!;
-				ctx.fillStyle = '#0a0a0a';
-				ctx.fillRect(0, 0, display.width, display.height);
+				ctx.clearRect(0, 0, display.width, display.height);
 				ctx.drawImage(bitmap, 0, 0, display.width, display.height);
 				texture.needsUpdate = true;
 				if (onFirstRaster) { onFirstRaster(); }
@@ -178,6 +176,9 @@ function useUiTexture(uiRef: React.RefObject<HTMLDivElement>, uiH: number, onFir
 
 const SCREEN_FRAG = `
 uniform sampler2D uTex;
+uniform sampler2D uVideo;  // live desk-cam feed, composited under the UI
+uniform float uVideoOn;
+uniform vec2 uVideoScale;  // uv crop for object-fit: cover
 uniform float uTime;
 uniform vec2 uCursor;    // uv
 uniform float uCursorOn;
@@ -198,7 +199,28 @@ void main() {
 		float line = floor(uv.y * uRes.y / 3.0);
 		uv.x += (hash(vec2(line, floor(uTime * 60.0))) - 0.5) * 0.06 * flip;
 	}
-	vec3 c = texture2D(uTex, uv).rgb;
+	vec4 t = texture2D(uTex, uv);
+	vec3 base = vec3(0.0);
+	if (uVideoOn > 0.5) {
+		vec2 vuv = (uv - 0.5) * uVideoScale + 0.5;
+
+		// VHS pass, video layer only:
+		// tape wobble — tiny per-scanline horizontal drift
+		float vline = floor(vuv.y * uRes.y);
+		vuv.x += (hash(vec2(vline, floor(uTime * 15.0))) - 0.5) * 0.0015;
+		// chroma bleed — red/blue taps offset sideways
+		base = vec3(
+			texture2D(uVideo, vuv + vec2(0.0016, 0.0)).r,
+			texture2D(uVideo, vuv).g,
+			texture2D(uVideo, vuv - vec2(0.0016, 0.0)).b
+		);
+		// worn tape: desaturate, lift blacks, dull highlights
+		base = mix(vec3(dot(base, vec3(0.299, 0.587, 0.114))), base, 0.8);
+		base = base * 0.9 + 0.03;
+		// grain
+		base += (hash(vuv * uRes + fract(uTime) * 43.7) - 0.5) * 0.07;
+	}
+	vec3 c = mix(base, t.rgb, t.a);
 	vec2 px = (vUv - uCursor) * uRes;
 	if (flip > 0.0) {
 		float n = hash(vUv * uRes * 0.5 + fract(uTime) * 100.0);
@@ -238,6 +260,10 @@ void main() {
 }
 `;
 
+// bound to uVideo until the stream's first live frame
+const BLACK_TEX = new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1);
+BLACK_TEX.needsUpdate = true;
+
 const SCREEN_VERT = `
 varying vec2 vUv;
 void main() {
@@ -246,25 +272,26 @@ void main() {
 }
 `;
 
-function formatLocalTime() {
-	return new Intl.DateTimeFormat(undefined, {
-		hour: '2-digit',
-		minute: '2-digit',
-		second: '2-digit',
-	}).format(new Date());
-}
+const TIME_FMT = new Intl.DateTimeFormat(undefined, {
+	hour: '2-digit',
+	minute: '2-digit',
+	second: '2-digit',
+});
+const MONTH_FMT = new Intl.DateTimeFormat('en-US', { month: 'short' });
 
 function formatLocalDate() {
 	const now = new Date();
-	const month = now.toLocaleDateString('en-US', { month: 'short' }).toUpperCase();
-	return `${month}.${now.getDate()} ${now.getFullYear()}`;
+	return `${MONTH_FMT.format(now).toUpperCase()}.${now.getDate()} ${now.getFullYear()}`;
 }
 
-/** OSD clock as its own tiny texture — keeps the per-second tick out of the DOM
-    snapshot pipeline entirely. */
-function ClockOverlay({ sw, sh }: { sw: number; sh: number }) {
-	const CW = 512;
-	const CH = 176;
+/** Camcorder OSD (REC/STBY, clock, tape speed, battery) as its own texture —
+    keeps the per-second tick out of the DOM snapshot pipeline entirely.
+    Laid out in UI px × S over the whole screen. */
+function OsdOverlay({ sw, sh }: { sw: number; sh: number }) {
+	const S = 2; // canvas oversampling for crisp glyphs
+	const uiH = UI_W * (sh / sw);
+	const W = Math.round(UI_W * S);
+	const H = Math.round(uiH * S);
 	const [onHome, setOnHome] = useState(true);
 
 	useEffect(() => {
@@ -275,10 +302,10 @@ function ClockOverlay({ sw, sh }: { sw: number; sh: number }) {
 	}, []);
 	const canvas = useMemo(() => {
 		const c = document.createElement('canvas');
-		c.width = CW;
-		c.height = CH;
+		c.width = W;
+		c.height = H;
 		return c;
-	}, []);
+	}, [W, H]);
 	const texture = useMemo(() => {
 		const t = new THREE.CanvasTexture(canvas);
 		t.colorSpace = THREE.SRGBColorSpace;
@@ -286,53 +313,77 @@ function ClockOverlay({ sw, sh }: { sw: number; sh: number }) {
 	}, [canvas]);
 
 	useEffect(() => {
+		const white = 'rgba(255,255,255,0.92)';
+		const whiteGlow = 'rgba(255,255,255,0.5)';
 		const draw = () => {
 			const ctx = canvas.getContext('2d')!;
-			ctx.clearRect(0, 0, CW, CH);
-			ctx.font = '52px "VT323", monospace';
-			ctx.fillStyle = 'rgba(255,255,255,0.92)';
-			ctx.shadowColor = 'rgba(255,255,255,0.5)';
-			ctx.shadowBlur = 12;
-			try { (ctx as any).letterSpacing = '9px'; } catch { /* older browsers */ }
-			const time = formatLocalTime();
-			ctx.fillText(time, 6, 62);
-			ctx.fillText(formatLocalDate(), 6, 132);
+			ctx.clearRect(0, 0, W, H);
+			ctx.font = `${26 * S}px "VT323", monospace`;
+			ctx.fillStyle = white;
+			ctx.shadowColor = whiteGlow;
+			ctx.shadowBlur = 6 * S;
+			try { (ctx as any).letterSpacing = `${4.5 * S}px`; } catch { /* older browsers */ }
 
-			// stream state: ▶ when the live stream is rolling, ❚❚ otherwise
+			const x0 = 58 * S;
+			const recY = (uiH - 144) * S;
+			const timeY = (uiH - 109) * S;
+			const dateY = (uiH - 74) * S;
+			ctx.fillText(TIME_FMT.format(new Date()), x0, timeY);
+			ctx.fillText(formatLocalDate(), x0, dateY);
+
+			// ● REC while the tape rolls (dot blinks on alternate seconds), STBY otherwise
 			const video = document.querySelector<HTMLVideoElement>('.stream-video');
 			const playing = Boolean(video && !video.paused && !video.ended);
-			const ix = 6 + ctx.measureText(time).width + 26;
-			ctx.beginPath();
 			if (playing) {
-				ctx.moveTo(ix, 26);
-				ctx.lineTo(ix, 60);
-				ctx.lineTo(ix + 28, 43);
-				ctx.closePath();
-				ctx.fill();
+				if (Math.floor(Date.now() / 1000) % 2 === 0) {
+					ctx.fillStyle = '#ff3b30';
+					ctx.shadowColor = 'rgba(255,60,40,0.7)';
+					ctx.beginPath();
+					ctx.arc(x0 + 7 * S, recY - 8 * S, 6 * S, 0, Math.PI * 2);
+					ctx.fill();
+					ctx.fillStyle = white;
+					ctx.shadowColor = whiteGlow;
+				}
+				ctx.fillText('REC', x0 + 24 * S, recY);
 			} else {
-				ctx.fillRect(ix, 26, 9, 34);
-				ctx.fillRect(ix + 16, 26, 9, 34);
+				ctx.fillText('STBY', x0, recY);
 			}
-			// scanlines so it matches the shader-treated screen
+
+			// tape speed + battery, bottom-right
+			const bx = (UI_W - 58) * S;
+			ctx.textAlign = 'right';
+			ctx.fillText('SP', bx - 48 * S, dateY);
+			ctx.textAlign = 'left';
+			const bw = 34 * S;
+			const bh = 15 * S;
+			const by = dateY - bh + 2 * S;
+			ctx.strokeStyle = white;
+			ctx.lineWidth = 1.5 * S;
+			ctx.strokeRect(bx - bw, by, bw, bh);
+			ctx.fillRect(bx, by + bh * 0.25, 3 * S, bh * 0.5); // terminal nub
+			for (let i = 0; i < 2; i++) {
+				ctx.fillRect(bx - bw + (4 + i * 10) * S, by + 3 * S, 8 * S, bh - 6 * S); // 2/3 cells: always almost dead
+			}
+
+			// scanlines so it matches the shader-treated screen — clipped to the glyphs,
+			// or they'd band the transparent canvas over the live video
 			ctx.shadowBlur = 0;
+			ctx.globalCompositeOperation = 'source-atop';
 			ctx.fillStyle = 'rgba(0,0,20,0.22)';
-			for (let y = 0; y < CH; y += 6) ctx.fillRect(0, y, CW, 2);
+			for (let y = 0; y < H; y += 3 * S) ctx.fillRect(0, y, W, S);
+			ctx.globalCompositeOperation = 'source-over';
 			texture.needsUpdate = true;
 		};
 		document.fonts.ready.then(draw);
 		draw();
 		const id = window.setInterval(draw, 1000);
 		return () => window.clearInterval(id);
-	}, [canvas, texture]);
+	}, [canvas, texture, W, H, uiH]);
 
-	// UI px -> screen units; anchored bottom-left like the old .osd-clock
-	const k = sw / UI_W;
-	const w = (CW / 2) * k;
-	const h = (CH / 2) * k;
 	if (!onHome) return null;
 	return (
-		<mesh position={[-sw / 2 + 58 * k + w / 2, -sh / 2 + 52 * k + h / 2, -4]}>
-			<planeGeometry args={[w, h]} />
+		<mesh position={[0, 0, -4]}>
+			<planeGeometry args={[sw, sh]} />
 			<meshBasicMaterial map={texture} transparent toneMapped={false} depthWrite={false} />
 		</mesh>
 	);
@@ -369,6 +420,9 @@ function Scene({ uiRef, dims, onFirstRaster, flipRef }: { uiRef: React.RefObject
 	const material = useMemo(() => new THREE.ShaderMaterial({
 		uniforms: {
 			uTex: { value: texture },
+			uVideo: { value: BLACK_TEX },
+			uVideoOn: { value: 0 },
+			uVideoScale: { value: new THREE.Vector2(1, 1) },
 			uTime: { value: 0 },
 			uCursor: { value: new THREE.Vector2(0.5, 0.5) },
 			uCursorOn: { value: 0 },
@@ -381,6 +435,7 @@ function Scene({ uiRef, dims, onFirstRaster, flipRef }: { uiRef: React.RefObject
 
 	const clockRef = useRef(0);
 	const spill = useRef<THREE.PointLight>(null);
+	const videoState = useRef<{ el: HTMLVideoElement | null; tex: THREE.VideoTexture | null }>({ el: null, tex: null });
 
 	useEffect(() => {
 		flipRef.current = () => { material.uniforms.uFlipStart.value = clockRef.current; };
@@ -391,6 +446,26 @@ function Scene({ uiRef, dims, onFirstRaster, flipRef }: { uiRef: React.RefObject
 		clockRef.current = t;
 		material.uniforms.uTime.value = t;
 
+		// live desk cam: sample the hidden <video> into the shader's base layer
+		const vs = videoState.current;
+		if (!vs.el) vs.el = document.querySelector<HTMLVideoElement>('.stream-video');
+		const video = vs.el;
+		const live = Boolean(video && !video.paused && video.readyState >= 3 && video.videoWidth);
+		if (live && video) {
+			if (!vs.tex) {
+				vs.tex = new THREE.VideoTexture(video);
+				vs.tex.colorSpace = THREE.SRGBColorSpace;
+			}
+			if (material.uniforms.uVideo.value !== vs.tex) material.uniforms.uVideo.value = vs.tex; // material is remade on resize
+			const va = video.videoWidth / video.videoHeight;
+			const sa = sw / sh;
+			// cover: crop the longer axis
+			if (va > sa) material.uniforms.uVideoScale.value.set(sa / va, 1);
+			else material.uniforms.uVideoScale.value.set(1, va / sa);
+		}
+		material.uniforms.uVideoOn.value = live ? 1 : 0;
+
+		// ponytail: bezel spill only tracks the UI raster; sample the video into the probe if the bezel should glow with the footage
 		if (spill.current) {
 			const { r, g, b, lum } = avgColor.current;
 			// mirror the shader: exposure dips + channel-flip static burst
@@ -562,7 +637,7 @@ function Scene({ uiRef, dims, onFirstRaster, flipRef }: { uiRef: React.RefObject
 				onWheel={onWheel}
 				onClick={onClick}
 			/>
-			<ClockOverlay sw={sw} sh={sh} />
+			<OsdOverlay sw={sw} sh={sh} />
 			{/* decay=0: with 1 unit = 1 px, physical falloff killed the light before it reached the bezel */}
 			<pointLight ref={spill} position={[0, 0, 60]} distance={Math.max(sw, sh) * 1.4} decay={0} />
 			<mesh geometry={bezel} position={[0, 0, -42]}>
